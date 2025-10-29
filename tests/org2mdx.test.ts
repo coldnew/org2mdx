@@ -69,6 +69,12 @@ console.log('Hello World');
     expect(orgToMdx(orgContent)).toBe(expected);
   });
 
+  it('should convert Org file links to MDX', () => {
+    const orgContent = '[[file:images/unicorn.png]]';
+    const expected = '![img](images/unicorn.png)';
+    expect(orgToMdx(orgContent)).toBe(expected);
+  });
+
   it('should handle frontmatter extraction', () => {
     const orgContent = `#+TITLE: My Document
 #+AUTHOR: John Doe

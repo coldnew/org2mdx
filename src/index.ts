@@ -144,6 +144,14 @@ function rehypeCaptionsAndTableAlignment() {
     visit(tree, 'element', (element: any, index?: number, parent?: any) => {
       // Handle captions for images
       if (element.tagName === 'img') {
+        // Handle file: prefix in src
+        if (element.properties.src && element.properties.src.startsWith('file:')) {
+          element.properties.src = element.properties.src.slice(5);
+          if (!element.properties.alt) {
+            element.properties.alt = 'img';
+          }
+        }
+
         const captionInfo = globalCaptions[imgIndex++];
         if (captionInfo && index !== undefined && parent) {
           // Wrap the img in a figure

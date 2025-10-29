@@ -196,7 +196,6 @@ Content.`;
     const expected = `<figure><img src="/images/unicorn.png" alt="" /><figcaption>A beautiful unicorn</figcaption></figure>
 
 <figure><img src="/images/another.png" alt="" /><figcaption>Another <strong>caption</strong> with <em>markup</em></figcaption></figure>`;
-    const result = orgToMdx(orgContent);
     expect(orgToMdx(orgContent)).toBe(expected);
   });
 

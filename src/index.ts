@@ -3,8 +3,10 @@ import parse from 'uniorg-parse';
 import uniorg2rehype from 'uniorg-rehype';
 import rehype2remark from 'rehype-remark';
 import remarkGfm from 'remark-gfm';
-import remarkStringify from 'remark-stringify';
+import { default as remarkStringify } from 'remark-stringify';
 import { visit } from 'unist-util-visit';
+import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'fs';
+import { join, dirname, extname } from 'path';
 
 // Global variable to pass alignment data between plugins
 let globalTableAlignments: any[] = [];
@@ -219,11 +221,22 @@ function rehypeCaptionsAndTableAlignment() {
   };
 }
 
+export interface FrontmatterConfig {
+  /** Array of Org property names to extract (e.g., ['TITLE', 'AUTHOR']) */
+  include?: string[];
+  /** Custom mapping from Org property to frontmatter key */
+  mapping?: Record<string, string>;
+  /** Custom formatting for specific properties */
+  formatters?: Record<string, (value: string) => string>;
+}
+
 export interface ConvertOptions {
   /** Preserve Org mode metadata as frontmatter */
-  frontmatter?: boolean;
+  frontmatter?: boolean | FrontmatterConfig;
   /** Custom MDX components mapping */
   components?: Record<string, string>;
+  /** Additional unified plugins to apply */
+  plugins?: Array<any>;
 }
 
 /**
@@ -247,9 +260,13 @@ export function orgToMdx(orgContent: string, options: ConvertOptions = {}): stri
     const file = processor.processSync(orgContent);
     let mdxContent = String(file).trim();
 
+    // Unescape HTML tags in html nodes
+    mdxContent = mdxContent.replace(/\\</g, '<').replace(/\\>/g, '>');
+
     // Add frontmatter if requested
     if (options.frontmatter) {
-      const frontmatter = extractFrontmatter(orgContent);
+      const config = typeof options.frontmatter === 'object' ? options.frontmatter : undefined;
+      const frontmatter = extractFrontmatter(orgContent, config);
       if (frontmatter) {
         mdxContent = `---\n${frontmatter}---\n\n${mdxContent}`;
       }
@@ -271,27 +288,89 @@ export function orgToMdx(orgContent: string, options: ConvertOptions = {}): stri
 /**
  * Extract frontmatter from Org content
  */
-function extractFrontmatter(orgContent: string): string | null {
+function extractFrontmatter(orgContent: string, config?: FrontmatterConfig): string | null {
   const properties: string[] = [];
   const lines = orgContent.split('\n');
 
+  // Default properties to extract if no config specified
+  const include = config?.include;
+  const mapping = config?.mapping || {};
+  const formatters = config?.formatters || {};
+
+  // Default mapping
+  const defaultMapping: Record<string, string> = {
+    TITLE: 'title',
+    AUTHOR: 'author',
+    DATE: 'date',
+    DESCRIPTION: 'description',
+    KEYWORDS: 'keywords',
+    CATEGORY: 'category',
+    TAGS: 'tags',
+  };
+
+  // Merge mappings
+  const finalMapping = { ...defaultMapping, ...mapping };
+
+  // Properties that should always be formatted as arrays
+  const arrayProperties = ['ALIAS', 'ALIASES', 'KEYWORDS', 'TAGS'];
+
+  // Default formatters for array properties
+  const defaultFormatters: Record<string, (value: string) => string> = {
+    KEYWORDS: (value: string) => {
+      const keywords = value
+        .trim()
+        .split(/\s*,\s*|\s+/)
+        .map((k) => `"${k.trim()}"`);
+      return `[${keywords.join(', ')}]`;
+    },
+    TAGS: (value: string) => {
+      const tags = value
+        .trim()
+        .split(/\s*,\s*|\s+/)
+        .map((t) => `"${t.trim()}"`);
+      return `[${tags.join(', ')}]`;
+    },
+  };
+
+  // Merge formatters
+  const finalFormatters = { ...defaultFormatters, ...formatters };
+
+  // Collect all values for each property
+  const propertyValues: Record<string, string[]> = {};
+
   for (const line of lines) {
-    const titleMatch = line.match(/^#\+TITLE:\s*(.+)$/i);
-    if (titleMatch) {
-      properties.push(`title: "${titleMatch[1].trim()}"`);
-      continue;
-    }
+    const match = line.match(/^#\+([A-Z_]+):\s*(.+)$/i);
+    if (match) {
+      const orgKey = match[1];
+      const value = match[2].trim();
 
-    const authorMatch = line.match(/^#\+AUTHOR:\s*(.+)$/i);
-    if (authorMatch) {
-      properties.push(`author: "${authorMatch[1].trim()}"`);
-      continue;
+      // Check if this property should be included
+      const shouldInclude = include ? include.includes(orgKey) : true; // If no include specified, include all
+      if (shouldInclude) {
+        if (!propertyValues[orgKey]) {
+          propertyValues[orgKey] = [];
+        }
+        propertyValues[orgKey].push(value);
+      }
     }
+  }
 
-    const dateMatch = line.match(/^#\+DATE:\s*(.+)$/i);
-    if (dateMatch) {
-      properties.push(`date: "${dateMatch[1].trim()}"`);
-      continue;
+  // Format the collected values
+  for (const [orgKey, values] of Object.entries(propertyValues)) {
+    const frontmatterKey = finalMapping[orgKey] || orgKey.toLowerCase();
+    const formatter = finalFormatters[orgKey];
+
+    if (formatter) {
+      // Use custom formatter for all values
+      const formattedValue = formatter(values.join(', '));
+      properties.push(`${frontmatterKey}: ${formattedValue}`);
+    } else if (values.length === 1 && !arrayProperties.includes(orgKey)) {
+      // Single value
+      properties.push(`${frontmatterKey}: "${values[0]}"`);
+    } else {
+      // Multiple values or array property as YAML array
+      const arrayItems = values.map((v) => `  - "${v}"`).join('\n');
+      properties.push(`${frontmatterKey}:\n${arrayItems}`);
     }
   }
 
@@ -312,4 +391,57 @@ function applyComponentMappings(content: string, components: Record<string, stri
   }
 
   return result;
+}
+
+/**
+ * Convert an Org file to MDX
+ */
+export function orgFileToMdx(filePath: string, options: ConvertOptions = {}): string {
+  try {
+    const orgContent = readFileSync(filePath, 'utf8');
+    return orgToMdx(orgContent, options);
+  } catch (error) {
+    throw new Error(
+      `Failed to convert Org file ${filePath} to MDX: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+/**
+ * Convert an Org file to MDX and write to output file
+ */
+export function convertOrgFile(
+  inputPath: string,
+  outputPath: string,
+  options: ConvertOptions = {},
+): void {
+  const mdxContent = orgFileToMdx(inputPath, options);
+  writeFileSync(outputPath, mdxContent, 'utf8');
+}
+
+/**
+ * Convert all .org files in a directory to .mdx files
+ */
+export function convertOrgDirectory(
+  inputDir: string,
+  outputDir: string,
+  options: ConvertOptions = {},
+): void {
+  const files = readdirSync(inputDir);
+
+  for (const file of files) {
+    const inputPath = join(inputDir, file);
+    const stat = statSync(inputPath);
+
+    if (stat.isDirectory()) {
+      // Recursively process subdirectories
+      const subOutputDir = join(outputDir, file);
+      mkdirSync(subOutputDir, { recursive: true });
+      convertOrgDirectory(inputPath, subOutputDir, options);
+    } else if (extname(file) === '.org') {
+      const outputPath = join(outputDir, file.replace('.org', '.mdx'));
+      mkdirSync(dirname(outputPath), { recursive: true });
+      convertOrgFile(inputPath, outputPath, options);
+    }
+  }
 }

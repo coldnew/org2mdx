@@ -95,6 +95,66 @@ Some content.`;
     expect(result).toContain('---');
     expect(result).toContain('title: "My Document"');
     expect(result).toContain('author: "John Doe"');
+    expect(result).toContain('date: "2023-10-29"');
+  });
+
+  it('should extract extended frontmatter properties', () => {
+    const orgContent = `#+TITLE: Advanced Document
+#+AUTHOR: Jane Smith
+#+DESCRIPTION: A comprehensive guide
+#+KEYWORDS: org-mode, mdx, nextjs
+#+CATEGORY: Tutorial
+#+TAGS: tutorial, guide, advanced
+#+CUSTOM_PROP: custom value
+
+Content here.`;
+    const result = orgToMdx(orgContent, { frontmatter: true });
+    expect(result).toContain('title: "Advanced Document"');
+    expect(result).toContain('author: "Jane Smith"');
+    expect(result).toContain('description: "A comprehensive guide"');
+    expect(result).toContain('keywords: ["org-mode", "mdx", "nextjs"]');
+    expect(result).toContain('category: "Tutorial"');
+    expect(result).toContain('tags: ["tutorial", "guide", "advanced"]');
+    expect(result).toContain('custom_prop: "custom value"');
+  });
+
+  it('should support custom frontmatter configuration', () => {
+    const orgContent = `#+TITLE: Custom Document
+#+AUTHOR: Custom Author
+#+DATE: 2024-01-01
+#+DESCRIPTION: Custom description
+
+Content.`;
+    const result = orgToMdx(orgContent, {
+      frontmatter: {
+        include: ['TITLE', 'AUTHOR'],
+        mapping: {
+          TITLE: 'pageTitle',
+          AUTHOR: 'writer',
+        },
+      },
+    });
+    expect(result).toContain('pageTitle: "Custom Document"');
+    expect(result).toContain('writer: "Custom Author"');
+    expect(result).not.toContain('date:');
+    expect(result).not.toContain('description:');
+  });
+
+  it('should handle multiple values for the same property as YAML arrays', () => {
+    const orgContent = `#+TITLE: Multi Alias Post
+#+ALIAS: alias1
+#+ALIAS: alias2
+#+ALIAS: alias3
+#+KEYWORDS: tag1, tag2
+
+Content.`;
+    const result = orgToMdx(orgContent, { frontmatter: true });
+    expect(result).toContain('title: "Multi Alias Post"');
+    expect(result).toContain('alias:');
+    expect(result).toContain('  - "alias1"');
+    expect(result).toContain('  - "alias2"');
+    expect(result).toContain('  - "alias3"');
+    expect(result).toContain('keywords: ["tag1", "tag2"]');
   });
 
   it('should apply component mappings', () => {
@@ -135,8 +195,8 @@ Some content.`;
 [[/images/another.png]]`;
     const expected = `<figure><img src="/images/unicorn.png" alt="" /><figcaption>A beautiful unicorn</figcaption></figure>
 
-<figure><img src="/images/another.png" alt="" /><figcaption>Another <strong>caption</strong> with <em>markup</em></figcaption></figure>
-`;
+<figure><img src="/images/another.png" alt="" /><figcaption>Another <strong>caption</strong> with <em>markup</em></figcaption></figure>`;
+    const result = orgToMdx(orgContent);
     expect(orgToMdx(orgContent)).toBe(expected);
   });
 

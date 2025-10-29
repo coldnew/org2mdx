@@ -53,6 +53,8 @@
 - Uses `uniorg` ecosystem for Org mode parsing and conversion
 - ES modules with TypeScript
 - CLI available via `org2mdx` command
-- Supports frontmatter extraction from Org keywords
+- Supports frontmatter extraction from Org keywords (TITLE, AUTHOR, DATE, DESCRIPTION, KEYWORDS, CATEGORY, TAGS, and custom properties)
 - Supports table conversion to Markdown tables with alignment
 - Supports image captions with `#+caption:` keywords, converting to HTML `<figure>` and `<figcaption>` elements in MDX output
+- Extensible API with custom plugin support
+- File and directory processing utilities for Next.js integration

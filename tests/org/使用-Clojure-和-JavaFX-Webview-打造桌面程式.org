@@ -1,0 +1,191 @@
+#+TITLE: 使用 clojure 和 JavaFX WebView 來打造桌面程式
+#+DATE: <2015-09-23 Wed 01:17>
+#+UPDATED: <2015-09-23 Wed 01:17>
+#+ABBRLINK: 5c119546
+#+OPTIONS: num:nil ^:nil
+#+TAGS: clojure, javafx, clojurescript
+#+LANGUAGE: zh-tw
+#+ALIAS: blog/2015/09-23_clojure_javafx_webview/index.html
+#+ALIAS: blog/2015/building_a_desktop_application_with_clojure_and_javafx_webview.html
+
+在 [[http://coldnew.github.io/blog/2015/building_a_desktop_application_with_cljs_and_electron.html][使用 clojurescript 和 electron 來打造桌面程式]] 一文中我們說到了如何使用
+electron 搭配 clojurescript 達到在 Node.js 平台使用 HTML 5 來打造桌面程式的方法，
+這一次則是來談談如何使用 Clojure 搭配 JavaFX WebView 辦到類似的事情。
+
+JavaFX 是目前 Java 發展的重點項目，自 Java 8 後已經整合進 JRE 裡面，在其中最吸引
+我的就是 WebView 組件了，該組件實際上就是一個 WebKit 瀏覽器，既然 Java 8 已經塞
+入了 Webkit 支援，也就是說我們可以用寫網頁的方式來建立我們的圖形介面，網頁的運作
+流程交給 clojurescript，而大量運算則是由 clojure 來搞定。
+
+本篇文章將談論如何在 Clojure 下用 JavaFX WebView 作為圖形介面，內容則採用
+HTML 來進行顯示，為了讓文章更簡單些，這邊只講述如何使用 WebView 的部分。
+
+* 先來看看 JAVA 要怎樣寫
+
+在剛開始學習 Clojure/Clojurescript 時，常常會需要參考 JAVA/Javascript 了解原本的
+程式怎樣運行，接著再將其改寫、修化成更適合 lisp 開發者的函式，也因此學習 Clojure
+(Clojurescript) 的時候，能看懂 Java (javascript) 是最好的，也易於讓自己學習更愉快。
+
+如果我們要用 JavaFX 寫個簡單一點的瀏覽器要怎樣作呢? 本文使用的原始程式碼如下:
+
+#+BEGIN_SRC java
+  package myapp;
+  
+  import javafx.application.Application;
+  import javafx.scene.Scene;
+  import javafx.scene.layout.StackPane;
+  import javafx.scene.web.WebEngine;
+  import javafx.scene.web.WebView;
+  import javafx.stage.Stage;
+  
+  public class MyApp extends Application {
+      @Override
+      public void start(Stage stage) throws Exception {
+          StackPane root = new StackPane();
+  
+          WebView view = new WebView();
+          WebEngine engine = view.getEngine();
+          engine.load("http://coldnew.github.io");
+  
+          root.getChildren().add(view);
+  
+          Scene scene = new Scene(root, 800, 600);
+          stage.setScene(scene);
+          stage.show();
+      }
+  
+      public static void main(String[] args) {
+          Application.launch(args);
+      }
+  }
+#+END_SRC
+
+* 建立我們的專案
+
+本篇文章還是依照以往的規則，使用預設的 /lein/ 樣板，因此我們這樣建立名為 /myapp/ 的專案:
+
+#+BEGIN_EXAMPLE
+coldnew@Rosia ~ $ lein new myapp
+#+END_EXAMPLE
+
+專案建立完成後，我們要稍微修改一下 /project.clj/ ，加上 =:main= 讓我們可以使用
+=lein run= 直接執行主程式，同時要記得加入 =:aot :all= 這一行來啟用 AOT (Ahead of
+Time) 編譯。
+
+#+BEGIN_SRC clojure
+  (defproject myapp "0.1.0-SNAPSHOT"
+    :description "FIXME: write description"
+    :url "http://example.com/FIXME"
+    :license {:name "Eclipse Public License"
+              :url "http://www.eclipse.org/legal/epl-v10.html"}
+    :dependencies [[org.clojure/clojure "1.7.0"]]
+  
+    :aot :all
+    :main myapp.core)
+#+END_SRC
+
+* 編輯 core.clj
+
+接著編輯 =src/myapp/core.clj= ，將原本的內容清除，我們將仿照 Java 的版本一一加上我們的程式
+
+首先是載入我們所需要的套件，在 Clojure 中要載入 Java 的函式庫都需要使用 =import=
+來進行載入，這邊基本上就是你在 Java 裡面會用到哪些模組，在 Clojure 中就用相對應的方式將其載入。
+
+#+BEGIN_SRC clojure
+  (ns myapp.core
+    (:import [javafx.application Application]
+             [javafx.scene Scene]
+             [javafx.stage Stage]
+             [javafx.scene.layout StackPane]
+             [javafx.scene.web WebView]))
+#+END_SRC
+
+載入完模組後，為了讓 Clojure 可以轉換成 jar 檔，我們要透過 /gen-class/ 來將
+/myapp.core/ 這個 /class/ 產生出來，除此之外，透過 /gen-class/ 我們也以告知我們要
+擴充的 java class 是哪一個。
+
+#+BEGIN_SRC clojure
+  (gen-class
+   :name myapp.core
+   :extends javafx.application.Application)
+#+END_SRC
+
+接下來讓我們來定義我們的 /main/ 方法
+
+#+BEGIN_SRC clojure
+  (defn -main [& args]
+    (Application/launch myapp.core args))
+#+END_SRC
+
+最後就是最主要的部分了， /start/ 是 JavaFX 程式的進入點，和程式的 /main/ 很相
+像。 /Stage/ 是應用程式最頂端的容器，會經由 /start/ 傳送過來。 /Scene/ 則是畫面
+的內容，我們將 /StackPane/ 置放於我們的 /Scene/ 中，並將 /WebView/ 包入到
+/StackPane/ 裡面 (一層包一層的感覺)
+
+#+BEGIN_SRC clojure
+  (defn -start [this ^Stage stage]
+    (let [root (StackPane.)
+          view (WebView.)]
+  
+      (.load (.getEngine view) "http://coldnew.github.io")
+  
+      (.add (.getChildren root) view)
+  
+      (doto stage
+        (.setScene (Scene. root 800 600))
+        (.show))))
+#+END_SRC
+
+在這範例中，我們是直接讓 WebView 去載入 [[http://coldnew.github.io]] ，也因此當你使
+用 =lein= 去執行這隻程式的時候，你就會看到有一個視窗跑出來，並且載入了我們目標的
+網頁。
+
+* 執行我們的程式
+
+由於我們一開始就在 =project.clj= 裡面加上了 =:aot all= 的設定，因此我們可以直接
+使用 =lein run= 來執行並測試這隻程式。
+
+#+BEGIN_EXAMPLE
+coldnew@Rosia ~/myapp $ lein run
+#+END_EXAMPLE
+
+#+BEGIN_CENTER
+[[file:使用-Clojure-和-JavaFX-Webview-打造桌面程式/simple_javafx.png]]
+#+END_CENTER
+
+* 完整程式碼
+
+由於這篇文章的程式很單純，因此我就不提供 git repo 讓各位測試，本文完整的程式碼如
+下：
+
+#+BEGIN_SRC clojure
+  (ns myapp.core
+    (:import [javafx.application Application]
+             [javafx.scene Scene]
+             [javafx.stage Stage]
+             [javafx.scene.layout StackPane]
+             [javafx.scene.web WebView]))
+  
+  (gen-class
+   :name myapp.core
+   :extends javafx.application.Application)
+  
+  (defn -start [this ^Stage stage]
+    (let [root (StackPane.)
+          view (WebView.)]
+  
+      (.load (.getEngine view) "http://coldnew.github.io")
+  
+      (.add (.getChildren root) view)
+  
+      (doto stage
+        (.setScene (Scene. root 800 600))
+        (.show))))
+  
+  (defn -main [& args]
+    (Application/launch myapp.core args))
+#+END_SRC
+
+* 延伸閱讀
+
+~[1]~ [[http://www.codedata.com.tw/java/hello-java-fx-part1/][Hello JavaFX! Part 1]]

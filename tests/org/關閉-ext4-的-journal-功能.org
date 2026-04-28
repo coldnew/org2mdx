@@ -1,0 +1,35 @@
+#+TITLE: 關閉 ext4 的 journal 功能
+#+DATE: <2013-01-27 Sun 13:00>
+#+UPDATED: <2013-01-27 Sun 13:00>
+#+ABBRLINK: 4dc6829
+#+OPTIONS: num:nil ^:nil
+#+TAGS: linux
+#+LANGUAGE: zh-tw
+#+ALIAS: blog/2013/01-27_3c2c1/index.html
+#+ALIAS: blog/2013/01/27_3c2c1.html
+
+ext4 是 Linux 下非常好的硬碟格式，但是若想要將 ext4 用於 sdcard
+或是 SSD 上時，關閉 journal(日誌) 功能則可以更好的保護硬碟，
+那要怎樣關閉 journal 呢?
+
+#+JSX: {/* more */}
+
+只需要以下的指令即可：
+(假設預關閉 journal 的目標是 /dev/sdb1)
+
+#+BEGIN_SRC sh
+  tune2fs -O ^has_journal /dev/sdb1
+#+END_SRC
+
+關閉了 journal 後，最好再使用 fsck 檢查一下
+
+#+BEGIN_SRC sh
+  e2fsck -f /dev/sdb1
+#+END_SRC
+
+那怎樣知道目前這個 ext4 系統是否有啟用 journal 功能呢，你可以
+使用下面指令來察看，若看到 has_journal 則代表你的 journal 是啟用的。
+
+#+BEGIN_SRC sh
+  dumpe2fs /dev/sdb1 | grep 'Filesystem features'
+#+END_SRC

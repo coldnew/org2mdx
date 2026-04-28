@@ -1,0 +1,276 @@
+#+TITLE: 在 clojure 下使用 JLine 2.x 實現互動式命令
+#+DATE: <2015-10-01 Thu 01:37>
+#+UPDATED: <2015-10-01 Thu 01:37>
+#+ABBRLINK: a8484432
+#+OPTIONS: num:nil ^:nil
+#+TAGS: clojure, java
+#+LANGUAGE: zh-tw
+#+ALIAS: blog/2015/10-01_clojure_jline/index.html
+
+[[http://tiswww.case.edu/php/chet/readline/rltop.html][GNU Readline Library]] 在 Linux 下是一個很常用的函式庫，在許多需要互動的指令程式上
+很常見到其蹤影，最經典的莫過於 shell 了。我們在 shell 輸入資訊、使用上下鍵切換歷
+史紀錄、按 =TAB= 進行自動補全等功能，實際上都是使用到了 [[http://tiswww.case.edu/php/chet/readline/rltop.html][readline]] 函式庫，
+
+在 Clojure 中，若我們想要製作類似 GNU Readline 那樣的功能，我們可以透過 JNA/JNI
+等方式來讀取 readline 函式庫，或者是找其他實現。
+
+在本篇文章中，我選用了 [[https://github.com/jline/jline2/][JLine 2.x]] 來作為 readline 函式庫的替代。[[https://github.com/jline/jline2/][JLine 2.x]] 是一個
+開源並使用 [[http://www.opensource.org/licenses/BSD-3-Clause][Modified BSD License]] 授權的純 Java 實現的函式庫，他提供了許多與 GNU
+Readline 類似的功能，是用來實現互動式命令很方便的工具。
+
+#+JSX: {/* more */}
+
+* 建立我們的專案
+
+本篇文章還是依照以往的規則，使用預設的 /lein/ 樣板，因此我們這樣建立名為
+/myapp/ 的專案:
+
+#+BEGIN_EXAMPLE
+coldnew@gentoo ~ $ lein new jline2
+#+END_EXAMPLE
+
+專案建立完成後，我們要稍微修改一下 /project.clj/ ，在 =:dependencies= 欄位加上
+[[https://github.com/jline/jline2/][jline2]] 的依賴。
+
+(你可以在 [[http://mvnrepository.com/artifact/jline/jline/2.13][這裡]] 找到最新的 JLine 版本資訊)
+
+#+BEGIN_SRC clojure
+  (defproject jline2 "0.1.0-SNAPSHOT"
+    :description "FIXME: write description"
+    :url "http://example.com/FIXME"
+    :license {:name "Eclipse Public License"
+              :url "http://www.eclipse.org/legal/epl-v10.html"}
+    :dependencies [[org.clojure/clojure "1.7.0"]
+                   [jline/jline "2.13"]])
+#+END_SRC
+
+* Example 0: 顯示使用者輸入
+
+對於互動式命令的實現，第一個程式就會是怎樣將使用者的輸入顯示出來，對於這樣單純的
+程式，我們可以直接透過 JLine 的 [[http://jline.github.io/jline2/apidocs/reference/jline/console/ConsoleReader.html][ConsoleReader]] 建立一個名為 /console/ 的物件，並
+透過他的 [[http://jline.github.io/jline2/apidocs/reference/jline/console/ConsoleReader.html#readLine%2528java.lang.Character%2529][.readLine]] 方法去取得目前輸入的資訊。
+
+#+BEGIN_SRC clojure
+  (ns jline2.example0
+    (:import [jline.console ConsoleReader])
+    (:gen-class))
+  
+  (defn -main []
+    (let [console (ConsoleReader.)
+          line (.readLine console "user> ")]
+      (println (str "You enter: " line))))
+#+END_SRC
+
+使用 =lein run -m jline2.example0= 執行後你就會看到如下的互動式程式，試著輸入一
+些東西看看。
+
+(可以使用 =Ctrl-c= 結束程式)
+
+#+BEGIN_EXAMPLE
+coldnew@gentoo ~/jline2 $ lein run -m jline2.example0
+user> hello jline2
+You enter: hello jline2
+#+END_EXAMPLE
+
+* Example 1: 無窮迴圈讀取輸入
+
+既然我們要打造互動式命令，通常都會將他卡在某個無窮迴圈中，直到遇到特定條件時跳脫
+出這個無窮迴圈，在 clojure 中有許多迴圈類的函式，比如 [[https://clojuredocs.org/clojure.core/while][while]] 、[[https://clojuredocs.org/clojure.core/for][for]] 、[[https://clojuredocs.org/clojure.core/loop][loop]] 等。
+
+這邊使用 [[https://clojuredocs.org/clojure.core/loop][loop]] 來實作我們的無窮迴圈，這個程式會一直執行，並且透過 [[http://jline.github.io/jline2/apidocs/reference/jline/console/ConsoleReader.html#readLine%2528java.lang.Character%2529][.readLine]] 方法
+去取得 console 目前輸入的資訊直到遇到使用者輸入 /quit/ 後，因為不再呼叫 /recur/
+而讓迴圈結束。
+
+當然，你也可以使用我們在 readline 下常用的 =Ctrl-c= 離開這個迴圈。
+
+#+BEGIN_SRC clojure
+  (ns jline2.example1
+    (:import [jline.console ConsoleReader])
+    (:gen-class))
+  
+  (defn -main []
+    (let [console (ConsoleReader.)]
+      (loop []
+        (let [line (.readLine console "user> ")]
+          (when-not (= line "quit")
+            (println (str "You enter: " line))
+            (recur))))
+      (println "Exit application.")))
+#+END_SRC
+
+我們使用 =lein run= 進行測試就會發現直到當輸入 /quit/ 時程式才結束。
+
+#+BEGIN_EXAMPLE
+coldnew@gentoo ~/jline2 $ lein run -m jline2.example1
+user> test
+You enter: test
+user> hi
+You enter: hi
+user> quit
+Exit application.
+#+END_EXAMPLE
+
+* Example 2: 遮蔽使用者輸入
+
+在互動式命令中，輸入密碼的時候我們不是不顯示密碼，不然就是將密碼轉換成 =*= 進行
+顯示，那在 jline 下要怎樣作呢？實際上透過 [[http://jline.github.io/jline2/apidocs/reference/jline/console/ConsoleReader.html][ConsoleReader]] 的 [[http://jline.github.io/jline2/apidocs/reference/jline/console/ConsoleReader.html#readLine%2528java.lang.Character%2529][.readLine]] 方法及可以
+設定要如何顯示使用者的輸入，比如說我們將輸入變成 =*= 這樣的符號:
+
+(在 clojure 中， =char= 型態的字元前面會加入反斜線 =\= 來表示)
+
+#+BEGIN_SRC clojure
+  (ns jline2.example2
+    (:import [jline.console ConsoleReader])
+    (:gen-class))
+  
+  (defn -main []
+    (let [console (ConsoleReader.)]
+      (loop []
+        (let [line (.readLine console "user> " \*)]
+          (when-not (= line "quit")
+            (println (str "You enter: " line))
+            (recur))))
+      (println "Exit application.")))
+#+END_SRC
+
+讓我們趕快來測試程式看看是不是所有輸入的資訊都被轉換成 =*= 了?
+
+#+BEGIN_EXAMPLE
+coldnew@gentoo ~/jline2 $ lein run -m jline2.example2
+user> ********
+You enter: asdadasd
+user> ****
+Exit application.
+#+END_EXAMPLE
+
+* Example 3: 簡易的 shell
+
+經過前面的範例，想必各位對 jline 的基本使用已經心裡有數了，那麼就讓我們來個複雜
+一點的程式來作個結束吧。我們要實現一個簡單的 shell，這個 shell 只有 3 種指令：ls、
+clear、echo。
+
+在講解前，先讓我們看看整體程式是長怎樣的:
+
+#+BEGIN_SRC clojure
+  (ns jline2.example3
+    (:import [jline.console ConsoleReader])
+    (:gen-class))
+  
+  (defn -main []
+    (let [console (ConsoleReader.)]
+      (loop []
+        (let [line (.readLine console "user> ")
+              line-seq (clojure.string/split line #"\s+")]
+          (when-not (= line "quit")
+            (case (first line-seq)
+              "ls"    (doseq [f (-> (System/getProperty "user.dir")
+                                    clojure.java.io/file
+                                    .list)]
+                        (println (str f)))
+              "clear" (.clearScreen console)
+              "echo"  (println (str (second line-seq)))
+              ;; default
+              (println (str "No such command!! You enter: " line)))
+            (recur))))
+      (println "Exit application.")))
+#+END_SRC
+
+在這個範例之前，我們都是直接去對 =line= 變數進行比較，但是在 shell 裡面，一行程
+式可以被解析為一道命令與許多參數，因此我們要先將 =line= 裡面的訊息切成許多序列
+(sequence)，序列的第一個即為 =命令= ，剩下的則是參數。
+
+clojure.string 提供了 [[https://clojuredocs.org/clojure.string/split][split]] 函式可以很方便的將字串切割成序列 (sequence)。
+
+#+BEGIN_SRC clojure
+  (clojure.string/split "echo test" #"\s+")
+  ;;=> ["echo" "test"]
+#+END_SRC
+
+將輸入的資訊切割成序列 (sequence) 後，我們就可以使用 [[https://clojuredocs.org/clojure.core/first][first]] 去取得序列的第一個項
+目，也就是使用者實際輸入的命令，我們將其導入 [[https://clojuredocs.org/clojure.core/case][case]] 進行判斷，若有符合的資訊則根據
+批配項目進行相對應的函式，反之則提示說沒有該命令存在。
+
+#+BEGIN_SRC clojure
+  (case (first line-seq)
+    "ls"    (doseq [f (-> (System/getProperty "user.dir")
+                          clojure.java.io/file
+                          .list)]
+              (println (str f)))
+    "clear" (.clearScreen console)
+    "echo"  (println (str (second line-seq)))
+    ;; default
+    (println (str "No such command!! You enter: " line)))
+#+END_SRC
+
+我們先從 clear 命令開始，clear 命令實際上是調用了 [[http://jline.github.io/jline2/apidocs/reference/jline/console/ConsoleReader.html][ConsoleReader]] 的 [[http://jline.github.io/jline2/apidocs/reference/jline/console/ConsoleReader.html#clearScreen%2528%2529][clearScreen[[file:][]]]
+方法，將整個畫面清除乾淨。
+
+而 echo 命令則是透過 [[https://clojuredocs.org/clojure.core/second][second]] 方法去取得我們切割出來的命令序列 (sequence) 中的第二
+個項目，並將之印出來。
+
+ls 命令則是當中最為複雜的一個，我們首先透過 =System/getProperty= 去取得當前目錄
+的位址:
+
+#+BEGIN_SRC clojure
+  (System/getProperty "user.dir")
+  ;;=> "/Data/jline2"
+#+END_SRC
+
+知道了當前目錄後，我們再將其透過 clojure.java.io 的[[https://clojuredocs.org/clojure.java.io/file][ file]] 將目錄內容轉換成
+序列 (sequence)。
+
+#+BEGIN_SRC clojure
+  (vec (-> (System/getProperty "user.dir") clojure.java.io/file .list))
+  ;;=> [".gitignore" "doc" "LICENSE" "project.clj" "README.md" "resources" "src" "test"]
+#+END_SRC
+
+有了序列 (sequence) 以後，接下來就使用 [[https://clojuredocs.org/clojure.core/doseq][doseq]] 去遍歷這整個序列 (sequence) ，並將
+資訊印出來，這樣我們的 ls 命令就完成了。
+
+#+BEGIN_SRC clojure
+  (doseq [f (-> (System/getProperty "user.dir")
+                clojure.java.io/file
+                .list)]
+    (println (str f)))
+  ;;=> .gitignore
+  ;;=> doc
+  ;;=> LICENSE
+  ;;=> project.clj
+  ;;=> README.md
+  ;;=> resources
+  ;;=> src
+  ;;=> test
+#+END_SRC
+
+於是一個簡單的 shell 就這樣寫完了，我們一樣使用 =lein= 執行並測試這隻程式。
+
+#+BEGIN_EXAMPLE
+coldnew@gentoo ~/jline2 $ lein run -m jline2.example3
+user> echo hi
+hi
+user>
+#+END_EXAMPLE
+
+* 取得範例程式碼
+
+本篇文章的範例程式碼已經上傳到 [[https://github.com/coldnew/blog-tutorial-examples/tree/master/2015/lein_with_java][GitHub]] 上，你可以使用以下方式取得程式碼
+
+: git clone https://github.com/coldnew/blog-tutorial-examples.git
+
+並切換到 =2015/jline2= 資料夾去
+
+#+BEGIN_EXAMPLE
+coldnew@gentoo ~ $ cd blog-tutorial-examples/2015/jline2
+#+END_EXAMPLE
+
+程式的執行方式則和本篇文章相同 ~ Have Fun~~
+
+* 延伸閱讀
+
+~[1]~ [[http://www.cnblogs.com/hazir/p/instruction_to_readline.html][GNU Readline 庫及編程簡介]]
+
+~[2]~ [[http://offbytwo.com/presentations/building-better-repl.pdf][Building a better Clojure REPL]]
+
+~[3]~ [[https://jeszysblog.wordpress.com/2012/04/14/readline-style-command-line-editing-with-jline/][Readline style command line editing with JLine]]
+
+~[4]~ [[http://www.programcreek.com/java-api-examples/index.php?api=jline.console.ConsoleReader][Java Code Examples for jline.console.ConsoleReader]]

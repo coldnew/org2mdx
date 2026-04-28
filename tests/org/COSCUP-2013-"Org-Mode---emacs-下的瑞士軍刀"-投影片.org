@@ -1,0 +1,40 @@
+#+TITLE: COSCUP 2013 "Org-Mode - emacs 下的瑞士軍刀" 投影片
+#+DATE: <2013-08-04 Sun 23:28>
+#+UPDATED: <2013-08-04 Sun 23:28>
+#+ABBRLINK: 8b9ce9b9
+#+AUTHOR: coldnew
+#+EMAIL: coldnew.tw@gmail.com
+#+OPTIONS: num:nil
+#+TAGS: org-mode, emacs
+#+LANGUAGE: zh-tw
+#+ALIAS: blog/2013/08/04_9cb53.html
+#+ALIAS: blog/2013/08-04_9cb53/index.html
+
+[[http://coldnew.github.io/slides/COSCUP2013_org-mode/slide.html][Org-Mode - emacs 下的瑞士軍刀]] 是我在 [[http://coscup.org/2013/zh-tw/][COSCUP 2013]] 以 /emacs.tw/ 社群
+身份所做的演講，講述了 [[http://orgmode.org/][org-mode]] 這個現在 emacs 慣用者無法脫離的必備程式。
+
+org-mode 使用 *純文字檔案* 實現 *時間管理* 、 *記事* 、 *文檔輸出* 等功
+能，即使不是 emacs 使用者在使用後也能夠感受到其強大的威力，對我個人而言，
+最喜歡的就是他的文檔輸出功能。
+
+以往要產生 PDF 檔案，不是使用 Office 軟體 (Microsoft Office、
+LibreOffice)，就是要使用 LaTeX 來撰寫，前者排版需要對軟體具有一定的熟練
+度，後者則是要先痛過一次 (使用很多時間弄懂)，之後則能快速進行文檔撰寫
+以及排板。用 org-mode 來產生 LaTeX 檔案，從而生出 PDF 文件則不同，你需要會一
+些 LaTeX 沒錯，但是當樣板定義好後，你甚至什麼都不用考慮，直接以 org-mode
+的形式來撰寫你的 LaTex 程式，然後就可以轉換成 PDF 直接觀看你做出來的結
+果。更好的事情是，同一份 Org 文件，也可以產生 HTML、Markdown 等文件。
+
+在這場演講裏面，我使用自己設計的 [[https://github.com/coldnew/org-ioslide][org-ioslide]] 來產生網頁版的投影片檔案，
+並且也弄了很多的範例程式 (很可惜的是時間掌握不好，範例程式沒什麼講到)，
+整個投影片的連結與原始碼連結如下：
+
+#+HTML: <div class="row "><div class="col-md-4 col-md-offset-3">
+
+[[http://coldnew.github.io/slides/COSCUP2013_org-mode/slide.html][投影片線上看]]
+
+#+HTML: </div><div class="col-md-4 ">
+
+[[https://github.com/coldnew/COSCUP2013_org-mode][投影片與範例程式]]
+
+#+HTML: </div> </div>

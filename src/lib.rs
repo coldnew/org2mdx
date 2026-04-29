@@ -213,6 +213,7 @@ impl OrgConverter {
                 }
                 // code/example blocks
                 let tl_lower = trimmed_line.to_lowercase();
+                let block_indented = line != trimmed_line; // original line was indented
                 if tl_lower.starts_with("#+begin_src")
                     || tl_lower.starts_with("#+begin_example")
                     || tl_lower.starts_with("#+begin_quote")
@@ -266,7 +267,23 @@ impl OrgConverter {
                         }
                         _ => {
                             let rendered = self.render_block(&block_type, &block_lines);
-                            let min_blanks = if after_code { 2 } else { 1 };
+                            // Indented code blocks get a trailing blank inside the fence
+                            let rendered = if block_indented && rendered.ends_with("```") {
+                                let end_idx = rendered.rfind("```").unwrap();
+                                format!("{}\n{}", &rendered[..end_idx], &rendered[end_idx..])
+                            } else {
+                                rendered
+                            };
+                            let min_blanks = match &block_type {
+                                BlockType::Example => 2,
+                                _ => {
+                                    if after_code {
+                                        2
+                                    } else {
+                                        1
+                                    }
+                                }
+                            };
                             push_block_n(&mut out, &rendered, min_blanks);
                             // Only Src and Example blocks trigger after_code
                             match &block_type {
@@ -316,8 +333,9 @@ impl OrgConverter {
                 }
                 let hashes = "#".repeat(level as usize);
                 let heading = format!("{} {}", hashes, self.inline(title));
-                let min_blanks = if after_html { 2 } else { 1 };
-                push_block_n(&mut out, &heading, min_blanks);
+                let min_blanks = if after_html || after_code { 2 } else { 1 };
+                // For headings, enforce exact blank count (cap excess)
+                push_block_exact(&mut out, &heading, min_blanks);
                 after_code = false;
                 after_html = false;
                 code_no_blank = false;
@@ -376,7 +394,7 @@ impl OrgConverter {
                     out.push('\n');
                     code_no_blank = false;
                 } else {
-                    let min_blanks = if after_code { 2 } else { 1 };
+                    let min_blanks = if after_code || after_html { 2 } else { 1 };
                     push_block_n(&mut out, &para, min_blanks);
                     code_no_blank = false;
                 }
@@ -638,7 +656,10 @@ impl OrgConverter {
                             .map(|nl| nl.as_str());
                         match next_non_blank {
                             Some(next) if is_ordered_item(next) => {
-                                // blank between items: skip blank, continue (no blank in output)
+                                // blank between items: if result ends with sub-content (indented), add blank
+                                if result.contains("\n   ") {
+                                    result.push('\n');
+                                }
                                 self.advance(); // consume the blank
                                 continue;
                             }
@@ -1040,6 +1061,32 @@ fn push_block_n(out: &mut String, content: &str, min_blanks: usize) {
             for _ in trailing..needed_newlines {
                 out.push('\n');
             }
+        }
+    }
+    out.push_str(content);
+    if !out.ends_with('\n') {
+        out.push('\n');
+    }
+}
+
+/// Like push_block_n but also trims excess trailing newlines (exact blank count)
+fn push_block_exact(out: &mut String, content: &str, blanks: usize) {
+    if content.is_empty() {
+        return;
+    }
+    let needed_newlines = blanks + 1;
+    if out.is_empty() {
+        out.push('\n');
+    } else {
+        let trailing = out.bytes().rev().take_while(|&b| b == b'\n').count();
+        if trailing < needed_newlines {
+            for _ in trailing..needed_newlines {
+                out.push('\n');
+            }
+        } else if trailing > needed_newlines {
+            let excess = trailing - needed_newlines;
+            let new_len = out.len() - excess;
+            out.truncate(new_len);
         }
     }
     out.push_str(content);

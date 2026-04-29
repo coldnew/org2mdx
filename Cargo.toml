@@ -1,0 +1,16 @@
+[package]
+name = "org2mdx"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "org2mdx"
+path = "src/main.rs"
+
+[lib]
+name = "org2mdx"
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]

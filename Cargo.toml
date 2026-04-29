@@ -10,7 +10,10 @@ path = "src/main.rs"
 [lib]
 name = "org2mdx"
 path = "src/lib.rs"
+crate-type = ["rlib"]
 
 [dependencies]
+napi = { version = "3", default-features = false, features = ["napi8"] }
+napi-derive = "3"
 
 [dev-dependencies]

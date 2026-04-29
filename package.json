@@ -1,0 +1,1 @@
+{"description":"Convert org-mode to MDX","keywords":["org-mode","mdx","converter"],"license":"MIT","main":"index.js","name":"org2mdx","scripts":{"build":"cargo build --release","install":"npm run build","test":"node test.js"},"types":"index.d.ts","version":"0.1.0"}

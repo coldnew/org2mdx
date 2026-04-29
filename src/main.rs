@@ -1,25 +1,46 @@
-use std::env;
+use clap::Parser;
 use std::fs;
 
+#[derive(Parser)]
+#[command(name = "org2mdx")]
+#[command(about = "Convert between Org and MDX", long_about = None)]
+struct Cli {
+    /// Input file path
+    input: String,
+
+    /// Output file path (optional)
+    output: Option<String>,
+
+    /// Input format: org or mdx
+    #[arg(long, default_value = "org")]
+    from: String,
+
+    /// Output format: mdx or org
+    #[arg(long, default_value = "mdx")]
+    to: String,
+}
+
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage: org2mdx <input.org> [output.mdx]");
-        std::process::exit(1);
-    }
-    let input_path = &args[1];
-    let input = fs::read_to_string(input_path).expect("failed to read input file");
-    let output = match org2mdx::convert(&input) {
-        Ok(content) => content,
-        Err(e) => {
-            eprintln!("Conversion failed: {}", e);
+    let cli = Cli::parse();
+
+    let input_content = fs::read_to_string(&cli.input).expect("failed to read input file");
+
+    let output_content = match (cli.from.as_str(), cli.to.as_str()) {
+        ("org", "mdx") => org2mdx::org_to_mdx::convert(&input_content),
+        ("mdx", "org") => org2mdx::mdx_to_org::convert(&input_content),
+        (from, to) => {
+            eprintln!("Unsupported conversion: {} -> {}", from, to);
             std::process::exit(1);
         }
-    };
+    }
+    .unwrap_or_else(|e| {
+        eprintln!("Conversion failed: {}", e);
+        std::process::exit(1);
+    });
 
-    if args.len() >= 3 {
-        fs::write(&args[2], output).expect("failed to write output file");
+    if let Some(output_path) = cli.output {
+        fs::write(output_path, output_content).expect("failed to write output file");
     } else {
-        print!("{}", output);
+        print!("{}", output_content);
     }
 }

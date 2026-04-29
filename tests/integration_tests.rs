@@ -1,5 +1,4 @@
 use std::fs;
-use std::path::Path;
 
 fn test_pair(stem: &str) {
     let org_path = format!("tests/org/{}.org", stem);
@@ -10,7 +9,8 @@ fn test_pair(stem: &str) {
     let expected =
         fs::read_to_string(&mdx_path).unwrap_or_else(|e| panic!("Cannot read {}: {}", mdx_path, e));
 
-    let actual = org2mdx::convert(&org);
+    let actual =
+        org2mdx::convert(&org).unwrap_or_else(|e| panic!("Conversion failed for {}: {}", stem, e));
 
     if actual != expected {
         // Print diff-like output

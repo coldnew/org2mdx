@@ -152,6 +152,22 @@ impl OrgParser {
                 blocks.push(block);
                 continue;
             }
+            // Handle #+JSX: and #+HTML: as HtmlBlock (body content)
+            if let Some(v) = kw(trimmed, "JSX") {
+                blocks.push(Block::HtmlBlock(v.trim().to_string()));
+                self.advance();
+                continue;
+            }
+            if let Some(v) = kw(trimmed, "HTML") {
+                blocks.push(Block::HtmlBlock(v.trim().to_string()));
+                self.advance();
+                continue;
+            }
+            // Skip other #+ and #- directive lines (already processed in process_directive)
+            if trimmed.starts_with("#+") || trimmed.starts_with("#-") {
+                self.advance();
+                continue;
+            }
             // Handle : prefix example blocks
             if line.starts_with(": ") || line == ":" {
                 let code = self.parse_colon_block();

@@ -46,7 +46,7 @@ impl ParagraphParser for OrgConverter {
         if parts.is_empty() {
             return (String::new(), false);
         }
-        let joined = parts.join(" ");
+        let joined = parts.join("\n");
         let normalized = crate::util::collapse_spaces(&joined);
         (self.inline(&normalized), had_line_break)
     }

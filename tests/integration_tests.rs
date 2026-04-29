@@ -1,3 +1,4 @@
+use serde_yaml::Value;
 use std::fs;
 use std::path::Path;
 
@@ -40,14 +41,51 @@ fn test_all_org_files() {
             }
         };
 
-        if actual != expected {
-            let actual_lines: Vec<&str> = actual.lines().collect();
-            let expected_lines: Vec<&str> = expected.lines().collect();
-            let max = actual_lines.len().max(expected_lines.len());
+        // Split frontmatter and content
+        fn split_frontmatter(s: &str) -> Option<(Value, &str)> {
+            let s = s.trim_start();
+            if !s.starts_with("---\n") {
+                return None;
+            }
+            let after_start = &s[4..];
+            if let Some(end) = after_start.find("\n---\n") {
+                let yaml_str = &after_start[..end];
+                let rest = &after_start[end + 5..];
+                match serde_yaml::from_str(yaml_str) {
+                    Ok(value) => Some((value, rest)),
+                    Err(_) => None,
+                }
+            } else {
+                None
+            }
+        }
+
+        let (expected_fm, expected_rest) = split_frontmatter(&expected).unwrap_or_else(|| {
+            panic!(
+                "Expected file {} has invalid frontmatter",
+                mdx_path.display()
+            )
+        });
+        let (actual_fm, actual_rest) = split_frontmatter(&actual)
+            .unwrap_or_else(|| panic!("Actual output for {} has invalid frontmatter", stem));
+
+        // Compare frontmatter as YAML values (order-insensitive)
+        if expected_fm != actual_fm {
+            failures.push(format!(
+                "Frontmatter mismatch for {}:\n  expected: {:#?}\n  actual:   {:#?}",
+                stem, expected_fm, actual_fm
+            ));
+        }
+
+        // Compare the rest of the content
+        if expected_rest != actual_rest {
+            let expected_lines: Vec<&str> = expected_rest.lines().collect();
+            let actual_lines: Vec<&str> = actual_rest.lines().collect();
+            let max = expected_lines.len().max(actual_lines.len());
             let mut diff = String::new();
             for i in 0..max {
-                let a = actual_lines.get(i).copied().unwrap_or("<missing>");
                 let e = expected_lines.get(i).copied().unwrap_or("<missing>");
+                let a = actual_lines.get(i).copied().unwrap_or("<missing>");
                 if a != e {
                     diff.push_str(&format!(
                         "\nLine {} mismatch:\n  expected: {:?}\n  actual:   {:?}",
@@ -61,7 +99,7 @@ fn test_all_org_files() {
                     }
                 }
             }
-            failures.push(format!("Output mismatch for {}:{}", stem, diff));
+            failures.push(format!("Content mismatch for {}:{}", stem, diff));
         }
     }
 

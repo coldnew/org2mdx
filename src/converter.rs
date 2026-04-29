@@ -48,7 +48,7 @@ impl OrgConverter {
         // Pass 2: build body
         let body = self.build_body()?;
         let fm = self.frontmatter.build();
-        let combined = format!("{}\n{}", fm, body);
+        let combined = format!("{}{}", fm, body);
         let trimmed = combined.trim_end();
         let last_line = trimmed.lines().last().unwrap_or("");
         let needs_newline =
@@ -88,6 +88,8 @@ impl OrgConverter {
             self.frontmatter.set_str("author_email", v.to_string());
         } else if let Some(v) = kw(line, "ALIAS") {
             self.frontmatter.push_list("alias", v.to_string());
+        } else if let Some(v) = kw(line, "LANGUAGE") {
+            self.frontmatter.set_str("language", v.to_string());
         } else if let Some(v) = kw(line, "ATTR_HTML") {
             self.frontmatter.set_str("attr_html", v.to_string());
         } else if let Some(v) = kw(line, "LINK") {
@@ -105,12 +107,22 @@ impl OrgConverter {
         let mut after_html = false;
         let mut code_no_blank = false;
 
+        // Skip leading blank lines
+        while let Some(line) = self.peek() {
+            if line.trim().is_empty() {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+
         while let Some(line_raw) = self.peek() {
             let line = line_raw.to_string();
             let trimmed_line = line.trim();
 
             if trimmed_line.is_empty() {
-                if !out.is_empty() && (after_code || !out.ends_with("\n\n")) {
+                let trailing = out.bytes().rev().take_while(|&b| b == b'\n').count();
+                if !out.is_empty() && trailing < 2 {
                     out.push('\n');
                 }
                 self.advance();
@@ -230,12 +242,10 @@ impl OrgConverter {
                                 BlockType::Src(_) | BlockType::Example => {
                                     let next_is_blank =
                                         self.peek().map(|l| l.trim().is_empty()).unwrap_or(false);
-                                    if next_is_blank {
-                                        out.push('\n');
-                                    } else {
+                                    if !next_is_blank {
                                         code_no_blank = true;
                                     }
-                                    after_code = true;
+                                    after_code = false;
                                 }
                                 _ => {
                                     after_code = false;

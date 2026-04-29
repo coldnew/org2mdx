@@ -85,10 +85,7 @@ pub fn convert_inline(text: &str, link_aliases: &HashMap<String, String>) -> Str
         if chars[i] == '_' && i > 0 && chars[i - 1].is_alphanumeric() {
             if i + 1 < len {
                 let next = chars[i + 1];
-                if next.is_alphanumeric() {
-                    i += 1;
-                    continue;
-                } else if next == '{' {
+                if next == '{' {
                     let mut j = i + 2;
                     while j < len && chars[j] != '}' {
                         out.push(chars[j]);

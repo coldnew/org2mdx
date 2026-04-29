@@ -31,7 +31,7 @@ e2fsck -f /dev/sdb1
 ```
 
 那怎樣知道目前這個 ext4 系統是否有啟用 journal 功能呢，你可以
-使用下面指令來察看，若看到 has\_journal 則代表你的 journal 是啟用的。
+使用下面指令來察看，若看到 has_journal 則代表你的 journal 是啟用的。
 
 ```sh
 dumpe2fs /dev/sdb1 | grep 'Filesystem features'

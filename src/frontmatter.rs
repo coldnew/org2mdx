@@ -63,8 +63,7 @@ impl FrontmatterBuilder {
                 None => {}
             }
         }
-        s += "description: Generated from Org-mode\n";
-        s += "---";
+        s += "---\n\n";
         s
     }
 }

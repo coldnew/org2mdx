@@ -17,3 +17,4 @@ napi = { version = "3", default-features = false, features = ["napi8"] }
 napi-derive = "3"
 
 [dev-dependencies]
+serde_yaml = "0.9"

@@ -6,10 +6,10 @@ pub fn push_block_n(out: &mut String, content: &str, min_blanks: usize) {
     if content.is_empty() {
         return;
     }
-    let needed_newlines = min_blanks + 1;
     if out.is_empty() {
-        out.push('\n');
+        // Don't add leading newline - frontmatter already provides spacing
     } else {
+        let needed_newlines = min_blanks + 1;
         let trailing = out.bytes().rev().take_while(|&b| b == b'\n').count();
         if trailing < needed_newlines {
             for _ in trailing..needed_newlines {
@@ -27,10 +27,10 @@ pub fn push_block_exact(out: &mut String, content: &str, blanks: usize) {
     if content.is_empty() {
         return;
     }
-    let needed_newlines = blanks + 1;
     if out.is_empty() {
-        out.push('\n');
+        // Don't add leading newline - frontmatter already provides spacing
     } else {
+        let needed_newlines = blanks + 1;
         let trailing = out.bytes().rev().take_while(|&b| b == b'\n').count();
         if trailing < needed_newlines {
             for _ in trailing..needed_newlines {

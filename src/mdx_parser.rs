@@ -1,16 +1,81 @@
 use crate::ast::*;
 use crate::error::Result;
+use crate::util::iso_to_org_date;
 use markdown::mdast::Node as MdastNode;
 use markdown::to_mdast;
+use std::collections::HashMap;
 
 pub fn parse_mdx(input: &str) -> Result<Document> {
-    let mdast = to_mdast(input, &markdown::ParseOptions::default())
+    let (frontmatter, body) = extract_frontmatter(input);
+    let mdast = to_mdast(body, &markdown::ParseOptions::default())
         .map_err(|e| crate::error::Error::InvalidOrgFile(e.to_string()))?;
     let blocks = convert_node(&mdast);
     Ok(Document {
-        frontmatter: Default::default(), // TODO: extract frontmatter from MDX
+        frontmatter,
         blocks,
     })
+}
+
+fn extract_frontmatter(input: &str) -> (HashMap<String, FrontmatterValue>, &str) {
+    let input = input.trim_start();
+    if !input.starts_with("---\n") {
+        return (HashMap::new(), input);
+    }
+    let after_start = &input[4..];
+    if let Some(end) = after_start.find("\n---") {
+        let yaml_str = &after_start[..end];
+        let rest = &after_start[end + 4..];
+        match serde_yaml::from_str::<serde_yaml::Value>(yaml_str) {
+            Ok(value) => {
+                let mut map = HashMap::new();
+                if let serde_yaml::Value::Mapping(mapping) = value {
+                    for (k, v) in mapping {
+                        if let serde_yaml::Value::String(key) = k {
+                            let val = match v {
+                                serde_yaml::Value::String(s) => {
+                                    let key_lower = key.to_lowercase();
+                                    if key_lower == "date" || key_lower == "updated" {
+                                        if let Some(org_date) = iso_to_org_date(&s) {
+                                            FrontmatterValue::Str(org_date)
+                                        } else {
+                                            FrontmatterValue::Str(s)
+                                        }
+                                    } else {
+                                        FrontmatterValue::Str(s)
+                                    }
+                                }
+                                serde_yaml::Value::Sequence(seq) => {
+                                    let items: Vec<String> = seq
+                                        .into_iter()
+                                        .filter_map(|v| {
+                                            if let serde_yaml::Value::String(s) = v {
+                                                Some(s)
+                                            } else {
+                                                let s =
+                                                    serde_yaml::to_string(&v).unwrap_or_default();
+                                                Some(s.trim().to_string())
+                                            }
+                                        })
+                                        .collect();
+                                    FrontmatterValue::List(items)
+                                }
+                                _ => {
+                                    let s = serde_yaml::to_string(&v).unwrap_or_default();
+                                    let s = s.trim().to_string();
+                                    FrontmatterValue::Str(s)
+                                }
+                            };
+                            map.insert(key, val);
+                        }
+                    }
+                }
+                (map, rest.trim_start())
+            }
+            Err(_) => (HashMap::new(), input),
+        }
+    } else {
+        (HashMap::new(), input)
+    }
 }
 
 fn convert_node(node: &MdastNode) -> Vec<Block> {
@@ -29,10 +94,20 @@ fn convert_node(node: &MdastNode) -> Vec<Block> {
         }
         MdastNode::Paragraph(para) => {
             let content = convert_inlines(&para.children);
-            vec![Block::Paragraph(Paragraph {
-                content,
-                hard_line_break: false,
-            })]
+            let is_jsx = content.len() == 1
+                && matches!(&content[0], Inline::Text(s) if s.trim().starts_with('{') && s.trim().ends_with('}'));
+            if is_jsx {
+                if let Inline::Text(s) = &content[0] {
+                    vec![Block::HtmlBlock(s.trim().to_string())]
+                } else {
+                    unreachable!()
+                }
+            } else {
+                vec![Block::Paragraph(Paragraph {
+                    content,
+                    hard_line_break: false,
+                })]
+            }
         }
         MdastNode::List(list) => {
             let kind = if list.ordered {

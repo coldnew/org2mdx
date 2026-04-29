@@ -3,22 +3,56 @@ use crate::ast::*;
 pub fn render_org(doc: &Document) -> String {
     let mut out = String::new();
     if !doc.frontmatter.is_empty() {
-        out.push_str("---\n");
-        for (key, value) in &doc.frontmatter {
-            match value {
-                FrontmatterValue::Str(s) => {
-                    out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), s))
-                }
-                FrontmatterValue::List(list) => {
-                    out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), list.join(", ")));
+        let ordered_keys = [
+            "title", "date", "updated", "abbrlink", "options", "tags", "language", "alias",
+        ];
+        let has_options = doc
+            .frontmatter
+            .keys()
+            .any(|k| k.to_lowercase() == "options");
+        for key in ordered_keys.iter() {
+            if *key == "options" && !has_options {
+                out.push_str("#+OPTIONS: num:nil ^:nil\n");
+                continue;
+            }
+            if let Some(value) = doc.frontmatter.get(*key) {
+                match value {
+                    FrontmatterValue::Str(s) => {
+                        out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), s))
+                    }
+                    FrontmatterValue::List(list) => {
+                        for item in list {
+                            out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), item));
+                        }
+                    }
                 }
             }
         }
-        out.push_str("---\n\n");
+        for key in doc.frontmatter.keys() {
+            let k_lower = key.to_lowercase();
+            if !ordered_keys.contains(&k_lower.as_str()) {
+                let value = &doc.frontmatter[key];
+                match value {
+                    FrontmatterValue::Str(s) => {
+                        out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), s))
+                    }
+                    FrontmatterValue::List(list) => {
+                        for item in list {
+                            out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), item));
+                        }
+                    }
+                }
+            }
+        }
+        out.push('\n');
     }
     for block in &doc.blocks {
         render_block_org(&mut out, block);
     }
+    while out.ends_with('\n') {
+        out.pop();
+    }
+    out.push('\n');
     out
 }
 
@@ -45,18 +79,21 @@ fn render_block_org(out: &mut String, block: &Block) {
         Block::List(list) => render_list_org(out, list, 0),
         Block::CodeBlock(cb) => {
             if let Some(_lang) = &cb.language {
-                out.push_str(&format!("#+begin_src {}\n", _lang));
+                out.push_str(&format!("#+BEGIN_SRC {}\n", _lang));
             } else {
-                out.push_str("#+begin_example\n");
+                out.push_str("#+BEGIN_EXAMPLE\n");
             }
-            out.push_str(&cb.content);
-            if !cb.content.ends_with('\n') {
+            for line in cb.content.lines() {
+                out.push_str(&format!("  {}\n", line));
+            }
+            if cb.content.ends_with('\n') {
+                out.pop();
                 out.push('\n');
             }
             if let Some(_lang) = &cb.language {
-                out.push_str(&format!("#+begin_src {}\n", _lang));
+                out.push_str("#+END_SRC\n\n");
             } else {
-                out.push_str("#+begin_example\n");
+                out.push_str("#+END_EXAMPLE\n\n");
             }
         }
         Block::QuoteBlock(qb) => {
@@ -69,7 +106,7 @@ fn render_block_org(out: &mut String, block: &Block) {
         Block::HorizontalRule => out.push_str("----\n\n"),
         Block::BlankLine => out.push('\n'),
         Block::HtmlBlock(html) => {
-            out.push_str(&format!("#+HTML: {}\n", html));
+            out.push_str(&format!("#+JSX: {}\n\n", html));
         }
     }
 }

@@ -28,6 +28,7 @@ lazy_static = "1.4"
 unicode-width = "0.1"
 unicode-segmentation = "1.11"
 markdown = "1.0"
+serde_yaml = "0.9"
 
 [dev-dependencies]
 serde_yaml = "0.9"

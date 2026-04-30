@@ -5,20 +5,48 @@ pub fn render_mdx(doc: &Document) -> String {
     // Frontmatter
     if !doc.frontmatter.is_empty() {
         out.push_str("---\n");
-        for (key, value) in &doc.frontmatter {
-            match value {
-                FrontmatterValue::Str(s) => {
-                    out.push_str(&format!("{}: {}\n", key, s));
-                }
-                FrontmatterValue::List(list) => {
-                    out.push_str(&format!("{}:\n", key));
-                    for item in list {
-                        out.push_str(&format!("  - {}\n", item));
+        let ordered_keys = [
+            "title", "date", "updated", "abbrlink", "tags", "language", "alias",
+        ];
+        for key in &ordered_keys {
+            if let Some(value) = doc.frontmatter.get(*key) {
+                match value {
+                    FrontmatterValue::Str(s) => {
+                        if *key == "abbrlink" {
+                            out.push_str(&format!("{}: {}\n", key, s));
+                        } else {
+                            out.push_str(&format!("{}: {}\n", key, crate::util::yaml_str(s)));
+                        }
+                    }
+                    FrontmatterValue::List(list) => {
+                        out.push_str(&format!("{}:\n", key));
+                        for item in list {
+                            out.push_str(&format!("  - {}\n", item));
+                        }
                     }
                 }
             }
         }
-        out.push_str("---\n\n");
+        for (key, value) in &doc.frontmatter {
+            if !ordered_keys.contains(&key.as_str()) {
+                match value {
+                    FrontmatterValue::Str(s) => {
+                        if key == "abbrlink" {
+                            out.push_str(&format!("{}: {}\n", key, s));
+                        } else {
+                            out.push_str(&format!("{}: {}\n", key, crate::util::yaml_str(s)));
+                        }
+                    }
+                    FrontmatterValue::List(list) => {
+                        out.push_str(&format!("{}:\n", key));
+                        for item in list {
+                            out.push_str(&format!("  - {}\n", item));
+                        }
+                    }
+                }
+            }
+        }
+        out.push_str("---\n");
     }
     for block in &doc.blocks {
         render_block(&mut out, block);
@@ -44,7 +72,7 @@ fn render_block(out: &mut String, block: &Block) {
                 if p.hard_line_break {
                     out.push_str(&format!("{}\\\\ \n", content));
                 } else {
-                    out.push_str(&format!("{}\n\n", content));
+                    out.push_str(&format!("{}\n", content));
                 }
             }
         }
@@ -59,7 +87,7 @@ fn render_block(out: &mut String, block: &Block) {
             if !cb.content.ends_with('\n') {
                 out.push('\n');
             }
-            out.push_str("```\n\n");
+            out.push_str("```\n");
         }
         Block::QuoteBlock(qb) => {
             for block in &qb.blocks {

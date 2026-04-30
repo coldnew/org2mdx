@@ -229,14 +229,34 @@ impl OrgParser {
         }
         match block_type {
             crate::block::BlockType::Src(lang) => {
-                let content = lines.join("\n");
+                let min_indent = lines
+                    .iter()
+                    .filter(|l| !l.trim().is_empty())
+                    .map(|l| l.len() - l.trim_start_matches(|c: char| c == ' ' || c == '\t').len())
+                    .min()
+                    .unwrap_or(0);
+                let stripped: Vec<String> = lines
+                    .iter()
+                    .map(|l| crate::util::strip_prefix_spaces(l, min_indent).to_string())
+                    .collect();
+                let content = stripped.join("\n");
                 Ok(Block::CodeBlock(CodeBlock {
                     language: Some(lang),
                     content,
                 }))
             }
             crate::block::BlockType::Example => {
-                let content = lines.join("\n");
+                let min_indent = lines
+                    .iter()
+                    .filter(|l| !l.trim().is_empty())
+                    .map(|l| l.len() - l.trim_start_matches(|c: char| c == ' ' || c == '\t').len())
+                    .min()
+                    .unwrap_or(0);
+                let stripped: Vec<String> = lines
+                    .iter()
+                    .map(|l| crate::util::strip_prefix_spaces(l, min_indent).to_string())
+                    .collect();
+                let content = stripped.join("\n");
                 Ok(Block::CodeBlock(CodeBlock {
                     language: None,
                     content,

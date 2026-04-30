@@ -2,6 +2,7 @@ mod ast;
 mod block;
 mod error;
 mod heading;
+mod html_jsx;
 mod inline_parser;
 mod list;
 mod mdx_parser;

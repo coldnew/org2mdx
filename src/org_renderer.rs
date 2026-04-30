@@ -139,7 +139,10 @@ fn render_node_org(out: &mut String, node: &Node, mdx_html: &str) {
         "html" => {
             if let Some(val) = &node.value {
                 if mdx_html == "html" {
-                    out.push_str(&format!("#+HTML: {}\n\n", crate::util::jsx_to_html(val)));
+                    out.push_str(&format!(
+                        "#+HTML: {}\n\n",
+                        crate::html_jsx::jsx_to_html(val)
+                    ));
                 } else {
                     out.push_str(&format!("#+JSX: {}\n\n", val));
                 }

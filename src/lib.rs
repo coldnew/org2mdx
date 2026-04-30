@@ -33,3 +33,23 @@ pub mod mdx_to_org {
         Ok(render_org(&root))
     }
 }
+
+pub mod org_to_ast {
+    use crate::ast::Node;
+    use crate::error::Result;
+    use crate::org_parser::parse_org;
+
+    pub fn parse(input: &str) -> Result<Node> {
+        parse_org(input)
+    }
+}
+
+pub mod mdx_to_ast {
+    use crate::ast::Node;
+    use crate::error::Result;
+    use crate::mdx_parser::parse_mdx;
+
+    pub fn parse(input: &str) -> Result<Node> {
+        parse_mdx(input)
+    }
+}

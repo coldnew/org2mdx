@@ -1,25 +1,30 @@
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Position {
     pub start: Point,
     pub end: Point,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Point {
     pub line: u32,
     pub column: u32,
     pub offset: u32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Node {
     pub r#type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub children: Option<Vec<Node>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub position: Option<Position>,
+    #[serde(skip_serializing_if = "HashMap::is_empty", default)]
     pub data: HashMap<String, Value>,
 }
 

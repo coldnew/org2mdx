@@ -81,12 +81,6 @@ impl Node {
         self
     }
 
-    pub fn data_list(mut self, key: &str, values: Vec<String>) -> Self {
-        let arr: Vec<Value> = values.into_iter().map(Value::String).collect();
-        self.data.insert(key.to_string(), Value::Array(arr));
-        self
-    }
-
     pub fn data_list_val(mut self, key: &str, values: Vec<Value>) -> Self {
         self.data.insert(key.to_string(), Value::Array(values));
         self

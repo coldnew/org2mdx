@@ -52,27 +52,6 @@ pub fn escape_url_parens(url: &str) -> String {
         .replace('&', "\\&")
 }
 
-pub fn html_to_jsx(html: &str) -> String {
-    let trimmed = html.trim();
-    if trimmed == "<!--more-->" {
-        return "{/*more*/}".to_string();
-    }
-    if trimmed == "<!-- more -->" {
-        return "{/* more */}".to_string();
-    }
-    let mut s = html.to_string();
-    s = s.replace(" class=\"", " className=\"");
-    s = s.replace(" class='", " className='");
-    while s.contains("> </") {
-        s = s.replace("> </", "></");
-    }
-    for tag in &["br", "hr", "img", "input"] {
-        s = s.replace(&format!("<{}>", tag), &format!("<{} />", tag));
-        s = s.replace(&format!("<{}/>", tag), &format!("<{} />", tag));
-    }
-    s
-}
-
 pub fn yaml_str(s: &str) -> String {
     let needs_quote = s.contains('"')
         || s.contains(':')

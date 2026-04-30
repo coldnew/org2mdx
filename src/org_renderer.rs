@@ -2,14 +2,37 @@ use crate::ast::Node;
 
 pub fn render_org(root: &Node) -> String {
     let mut out = String::new();
+    let org_opts = root.data.get("org").and_then(|org| org.get("options"));
     if !root.data.is_empty() {
         let ordered_keys = [
             "title", "date", "updated", "abbrlink", "options", "tags", "language", "alias",
         ];
-        let has_options = root.data.keys().any(|k| k.to_lowercase() == "options");
         for key in ordered_keys.iter() {
-            if *key == "options" && !has_options {
-                out.push_str("#+OPTIONS: num:nil ^:nil\n");
+            if *key == "options" {
+                if let Some(opts) = org_opts.and_then(|o| o.as_object()) {
+                    let mut parts = Vec::new();
+                    for (k, v) in opts {
+                        if k == "mdx" {
+                            continue;
+                        }
+                        let org_k = if k == "superscript" { "^" } else { k.as_str() };
+                        let v_str = match v {
+                            serde_json::Value::Bool(false) => "nil",
+                            serde_json::Value::Bool(true) => "t",
+                            serde_json::Value::String(s) => s.as_str(),
+                            _ => continue,
+                        };
+                        parts.push(format!("{}:{}", org_k, v_str));
+                    }
+                    if !parts.is_empty() {
+                        out.push_str(&format!("#+OPTIONS: {}\n", parts.join(" ")));
+                    }
+                    if let Some(mdx_val) = opts.get("mdx").and_then(|v| v.as_str()) {
+                        out.push_str(&format!("#+OPTIONS: mdx: {}\n", mdx_val));
+                    }
+                } else {
+                    out.push_str("#+OPTIONS: num:nil ^:nil\n");
+                }
                 continue;
             }
             if let Some(value) = root.data.get(*key) {
@@ -25,9 +48,16 @@ pub fn render_org(root: &Node) -> String {
         }
         out.push('\n');
     }
+    let mdx_html = root
+        .data
+        .get("org")
+        .and_then(|org| org.get("options"))
+        .and_then(|opts| opts.get("mdx"))
+        .and_then(|mdx| mdx.as_str())
+        .unwrap_or("jsx");
     if let Some(children) = &root.children {
         for block in children {
-            render_node_org(&mut out, block);
+            render_node_org(&mut out, block, mdx_html);
         }
     }
     while out.ends_with('\n') {
@@ -51,7 +81,7 @@ fn render_frontmatter_org(out: &mut String, key: &str, value: &serde_json::Value
     }
 }
 
-fn render_node_org(out: &mut String, node: &Node) {
+fn render_node_org(out: &mut String, node: &Node, mdx_html: &str) {
     match node.r#type.as_str() {
         "heading" => {
             let depth = node.get_data_num("depth").unwrap_or(1) as usize;
@@ -73,7 +103,7 @@ fn render_node_org(out: &mut String, node: &Node) {
                 }
             }
         }
-        "list" => render_list_org(out, node, 0),
+        "list" => render_list_org(out, node, 0, mdx_html),
         "code" => {
             if let Some(lang) = node.get_data_str("lang") {
                 out.push_str(&format!("#+BEGIN_SRC {}\n", lang));
@@ -99,7 +129,7 @@ fn render_node_org(out: &mut String, node: &Node) {
             out.push_str("#+begin_quote\n");
             if let Some(children) = &node.children {
                 for child in children {
-                    render_node_org(out, child);
+                    render_node_org(out, child, mdx_html);
                 }
             }
             out.push_str("#+end_quote\n\n");
@@ -108,14 +138,18 @@ fn render_node_org(out: &mut String, node: &Node) {
         "blankLine" => out.push('\n'),
         "html" => {
             if let Some(val) = &node.value {
-                out.push_str(&format!("#+JSX: {}\n\n", val));
+                if mdx_html == "html" {
+                    out.push_str(&format!("#+HTML: {}\n\n", crate::util::jsx_to_html(val)));
+                } else {
+                    out.push_str(&format!("#+JSX: {}\n\n", val));
+                }
             }
         }
         _ => {}
     }
 }
 
-fn render_list_org(out: &mut String, node: &Node, indent: usize) {
+fn render_list_org(out: &mut String, node: &Node, indent: usize, mdx_html: &str) {
     let indent_str = "  ".repeat(indent);
     let ordered = node.get_data_bool("ordered").unwrap_or(false);
     if let Some(items) = &node.children {
@@ -128,7 +162,7 @@ fn render_list_org(out: &mut String, node: &Node, indent: usize) {
             let mut item_out = String::new();
             if let Some(children) = &item.children {
                 for child in children {
-                    render_node_org(&mut item_out, child);
+                    render_node_org(&mut item_out, child, mdx_html);
                 }
             }
             let first_line = item_out.lines().next().unwrap_or("");

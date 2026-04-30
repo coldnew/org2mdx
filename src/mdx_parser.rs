@@ -57,6 +57,9 @@ fn extract_frontmatter(input: &str) -> (HashMap<String, Value>, &str) {
                                         .collect();
                                     Value::Array(items)
                                 }
+                                serde_yaml::Value::Mapping(mapping) => {
+                                    convert_yaml_mapping_to_json(mapping)
+                                }
                                 _ => {
                                     let s = serde_yaml::to_string(&v).unwrap_or_default();
                                     Value::String(s.trim().to_string())
@@ -73,6 +76,47 @@ fn extract_frontmatter(input: &str) -> (HashMap<String, Value>, &str) {
     } else {
         (HashMap::new(), input)
     }
+}
+
+fn convert_yaml_mapping_to_json(mapping: serde_yaml::Mapping) -> Value {
+    let mut json_map = serde_json::Map::new();
+    for (k, v) in mapping {
+        if let serde_yaml::Value::String(key_str) = k {
+            let val = match v {
+                serde_yaml::Value::String(s) => Value::String(s),
+                serde_yaml::Value::Mapping(inner) => convert_yaml_mapping_to_json(inner),
+                serde_yaml::Value::Sequence(seq) => {
+                    let items: Vec<Value> = seq
+                        .into_iter()
+                        .map(|item| match item {
+                            serde_yaml::Value::String(s) => Value::String(s),
+                            serde_yaml::Value::Mapping(m) => convert_yaml_mapping_to_json(m),
+                            other => {
+                                let s = serde_yaml::to_string(&other).unwrap_or_default();
+                                Value::String(s.trim().to_string())
+                            }
+                        })
+                        .collect();
+                    Value::Array(items)
+                }
+                serde_yaml::Value::Bool(b) => Value::Bool(b),
+                serde_yaml::Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        Value::Number(serde_json::Number::from(i))
+                    } else if let Some(f) = n.as_f64() {
+                        serde_json::Number::from_f64(f)
+                            .map(Value::Number)
+                            .unwrap_or(Value::Null)
+                    } else {
+                        Value::Null
+                    }
+                }
+                serde_yaml::Value::Null | serde_yaml::Value::Tagged(_) => Value::Null,
+            };
+            json_map.insert(key_str, val);
+        }
+    }
+    Value::Object(json_map)
 }
 
 fn convert_node(node: &MdastNode) -> Vec<Node> {

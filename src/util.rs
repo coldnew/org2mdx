@@ -66,6 +66,28 @@ pub fn yaml_str(s: &str) -> String {
     }
 }
 
+pub fn html_to_jsx(html: &str) -> String {
+    let trimmed = html.trim();
+    if !trimmed.is_empty() {
+        if trimmed.starts_with("<!--") && trimmed.ends_with("-->") {
+            let inner = &trimmed[4..trimmed.len() - 3];
+            return format!("{{/* {} */}}", inner.trim());
+        }
+    }
+    html.to_string()
+}
+
+pub fn jsx_to_html(jsx: &str) -> String {
+    let trimmed = jsx.trim();
+    if !trimmed.is_empty() {
+        if trimmed.starts_with("{/*") && trimmed.ends_with("*/}") {
+            let inner = &trimmed[3..trimmed.len() - 3];
+            return format!("<!-- {} -->", inner.trim());
+        }
+    }
+    jsx.to_string()
+}
+
 pub fn org_date_to_iso(s: &str) -> Option<String> {
     let s = s.trim().trim_start_matches('<').trim_end_matches('>');
     let parts: Vec<&str> = s.split_whitespace().collect();

@@ -94,6 +94,48 @@ impl OrgParser {
         } else if let Some(v) = kw(trimmed, "ATTR_HTML") {
             self.frontmatter
                 .insert("attr_html".to_string(), Value::String(v.to_string()));
+        } else if let Some(v) = kw(trimmed, "OPTIONS") {
+            let entry = self
+                .frontmatter
+                .entry("org".to_string())
+                .or_insert_with(|| {
+                    let mut org_map = serde_json::Map::new();
+                    org_map.insert("options".to_string(), Value::Object(serde_json::Map::new()));
+                    Value::Object(org_map)
+                });
+            if let Value::Object(ref mut org_map) = entry {
+                if let Some(Value::Object(ref mut opts)) = org_map.get_mut("options") {
+                    let tokens: Vec<&str> = v.split_whitespace().collect();
+                    let mut i = 0;
+                    while i < tokens.len() {
+                        if let Some((key, val)) = tokens[i].split_once(':') {
+                            let mapped_key = match key {
+                                "^" => "superscript",
+                                other => other,
+                            };
+                            if val.is_empty() && i + 1 < tokens.len() {
+                                let mapped_val = match tokens[i + 1] {
+                                    "nil" => Value::Bool(false),
+                                    "t" => Value::Bool(true),
+                                    other => Value::String(other.to_string()),
+                                };
+                                opts.insert(mapped_key.to_string(), mapped_val);
+                                i += 2;
+                            } else {
+                                let mapped_val = match val {
+                                    "nil" => Value::Bool(false),
+                                    "t" => Value::Bool(true),
+                                    other => Value::String(other.to_string()),
+                                };
+                                opts.insert(mapped_key.to_string(), mapped_val);
+                                i += 1;
+                            }
+                        } else {
+                            i += 1;
+                        }
+                    }
+                }
+            }
         } else if let Some(v) = kw(trimmed, "LINK") {
             if let Some(sp) = v.find(char::is_whitespace) {
                 let name = v[..sp].trim().to_string();
@@ -149,7 +191,7 @@ impl OrgParser {
                 continue;
             }
             if let Some(v) = kw(trimmed, "HTML") {
-                blocks.push(Node::new("html").with_value(v.trim()));
+                blocks.push(Node::new("html").with_value(&crate::util::html_to_jsx(v.trim())));
                 self.advance();
                 continue;
             }

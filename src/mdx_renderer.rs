@@ -14,6 +14,13 @@ pub fn render_mdx(root: &Node) -> String {
         }
         for (key, value) in &root.data {
             if !ordered_keys.contains(&key.as_str()) {
+                if key == "org" {
+                    if let Some(options) = value.get("options") {
+                        if options.get("mdx").is_none() {
+                            continue;
+                        }
+                    }
+                }
                 render_frontmatter_value(&mut out, key, value);
             }
         }
@@ -44,7 +51,34 @@ fn render_frontmatter_value(out: &mut String, key: &str, value: &serde_json::Val
                 }
             }
         }
+        serde_json::Value::Object(obj) => {
+            out.push_str(&format!("{}:\n", key));
+            render_yaml_object(out, obj, 2);
+        }
         _ => {}
+    }
+}
+
+fn render_yaml_object(
+    out: &mut String,
+    obj: &serde_json::Map<String, serde_json::Value>,
+    indent: usize,
+) {
+    let prefix = " ".repeat(indent);
+    for (k, v) in obj {
+        match v {
+            serde_json::Value::String(s) => {
+                out.push_str(&format!("{}{}: {}\n", prefix, k, crate::util::yaml_str(s)));
+            }
+            serde_json::Value::Bool(b) => {
+                out.push_str(&format!("{}{}: {}\n", prefix, k, b));
+            }
+            serde_json::Value::Object(inner) => {
+                out.push_str(&format!("{}{}:\n", prefix, k));
+                render_yaml_object(out, inner, indent + 2);
+            }
+            _ => {}
+        }
     }
 }
 

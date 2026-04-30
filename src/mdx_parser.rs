@@ -1,22 +1,20 @@
-use crate::ast::*;
+use crate::ast::Node;
 use crate::error::Result;
 use crate::util::iso_to_org_date;
 use markdown::mdast::Node as MdastNode;
 use markdown::to_mdast;
+use serde_json::Value;
 use std::collections::HashMap;
 
-pub fn parse_mdx(input: &str) -> Result<Document> {
+pub fn parse_mdx(input: &str) -> Result<Node> {
     let (frontmatter, body) = extract_frontmatter(input);
     let mdast = to_mdast(body, &markdown::ParseOptions::default())
         .map_err(|e| crate::error::Error::InvalidOrgFile(e.to_string()))?;
     let blocks = convert_node(&mdast);
-    Ok(Document {
-        frontmatter,
-        blocks,
-    })
+    Ok(Node::root(blocks).with_data_map(frontmatter))
 }
 
-fn extract_frontmatter(input: &str) -> (HashMap<String, FrontmatterValue>, &str) {
+fn extract_frontmatter(input: &str) -> (HashMap<String, Value>, &str) {
     let input = input.trim_start();
     if !input.starts_with("---\n") {
         return (HashMap::new(), input);
@@ -36,33 +34,32 @@ fn extract_frontmatter(input: &str) -> (HashMap<String, FrontmatterValue>, &str)
                                     let key_lower = key.to_lowercase();
                                     if key_lower == "date" || key_lower == "updated" {
                                         if let Some(org_date) = iso_to_org_date(&s) {
-                                            FrontmatterValue::Str(org_date)
+                                            Value::String(org_date)
                                         } else {
-                                            FrontmatterValue::Str(s)
+                                            Value::String(s)
                                         }
                                     } else {
-                                        FrontmatterValue::Str(s)
+                                        Value::String(s)
                                     }
                                 }
                                 serde_yaml::Value::Sequence(seq) => {
-                                    let items: Vec<String> = seq
+                                    let items: Vec<Value> = seq
                                         .into_iter()
-                                        .filter_map(|v| {
+                                        .map(|v| {
                                             if let serde_yaml::Value::String(s) = v {
-                                                Some(s)
+                                                Value::String(s)
                                             } else {
                                                 let s =
                                                     serde_yaml::to_string(&v).unwrap_or_default();
-                                                Some(s.trim().to_string())
+                                                Value::String(s.trim().to_string())
                                             }
                                         })
                                         .collect();
-                                    FrontmatterValue::List(items)
+                                    Value::Array(items)
                                 }
                                 _ => {
                                     let s = serde_yaml::to_string(&v).unwrap_or_default();
-                                    let s = s.trim().to_string();
-                                    FrontmatterValue::Str(s)
+                                    Value::String(s.trim().to_string())
                                 }
                             };
                             map.insert(key, val);
@@ -78,110 +75,104 @@ fn extract_frontmatter(input: &str) -> (HashMap<String, FrontmatterValue>, &str)
     }
 }
 
-fn convert_node(node: &MdastNode) -> Vec<Block> {
+fn convert_node(node: &MdastNode) -> Vec<Node> {
     match node {
         MdastNode::Root(root) => root.children.iter().flat_map(convert_node).collect(),
         MdastNode::Heading(heading) => {
-            let level = heading.depth as u8;
             let content = convert_inlines(&heading.children);
-            vec![Block::Heading(Heading {
-                level,
-                content,
-                tags: vec![],
-                todo_keyword: None,
-                priority: None,
-            })]
+            vec![Node::new("heading")
+                .with_children(content)
+                .data_num("depth", heading.depth as u8)]
         }
         MdastNode::Paragraph(para) => {
             let content = convert_inlines(&para.children);
             let is_jsx = content.len() == 1
-                && matches!(&content[0], Inline::Text(s) if s.trim().starts_with('{') && s.trim().ends_with('}'));
+                && content[0].r#type == "text"
+                && content[0]
+                    .value
+                    .as_deref()
+                    .map(|s| s.trim().starts_with('{') && s.trim().ends_with('}'))
+                    .unwrap_or(false);
             if is_jsx {
-                if let Inline::Text(s) = &content[0] {
-                    vec![Block::HtmlBlock(s.trim().to_string())]
+                if let Some(val) = &content[0].value {
+                    vec![Node::new("html").with_value(val.trim())]
                 } else {
-                    unreachable!()
+                    vec![]
                 }
             } else {
-                vec![Block::Paragraph(Paragraph {
-                    content,
-                    hard_line_break: false,
-                })]
+                vec![Node::new("paragraph").with_children(content)]
             }
         }
         MdastNode::List(list) => {
-            let kind = if list.ordered {
-                ListKind::Ordered
-            } else {
-                ListKind::Unordered
-            };
-            let items = list
+            let ordered = list.ordered;
+            let items: Vec<Node> = list
                 .children
                 .iter()
                 .map(|item| {
                     if let MdastNode::ListItem(li) = item {
-                        let content = li.children.iter().flat_map(convert_node).collect();
-                        ListItem {
-                            content,
-                            children: vec![],
-                            checkbox: None,
-                        }
+                        let content: Vec<Node> =
+                            li.children.iter().flat_map(convert_node).collect();
+                        Node::new("listItem").with_children(content)
                     } else {
-                        ListItem {
-                            content: vec![],
-                            children: vec![],
-                            checkbox: None,
-                        }
+                        Node::new("listItem")
                     }
                 })
                 .collect();
-            vec![Block::List(List { kind, items })]
+            vec![Node::new("list")
+                .with_children(items)
+                .data_bool("ordered", ordered)]
         }
         MdastNode::Code(code) => {
-            vec![Block::CodeBlock(CodeBlock {
-                language: code.lang.clone(),
-                content: code.value.clone(),
-            })]
+            let mut node = Node::new("code").with_value(&code.value);
+            if let Some(ref lang) = code.lang {
+                node.data
+                    .insert("lang".to_string(), Value::String(lang.clone()));
+            }
+            vec![node]
         }
         MdastNode::Blockquote(quote) => {
-            let blocks = quote.children.iter().flat_map(convert_node).collect();
-            vec![Block::QuoteBlock(QuoteBlock { blocks })]
+            let children: Vec<Node> = quote.children.iter().flat_map(convert_node).collect();
+            vec![Node::new("blockquote").with_children(children)]
         }
-        MdastNode::ThematicBreak(_) => vec![Block::HorizontalRule],
-
+        MdastNode::ThematicBreak(_) => vec![Node::new("thematicBreak")],
         _ => vec![],
     }
 }
 
-fn convert_inlines(nodes: &[MdastNode]) -> Vec<Inline> {
+fn convert_inlines(nodes: &[MdastNode]) -> Vec<Node> {
     nodes
         .iter()
         .flat_map(|node| match node {
-            MdastNode::Text(text) => vec![Inline::Text(text.value.clone())],
-            MdastNode::Strong(strong) => vec![Inline::Bold(convert_inlines(&strong.children))],
-            MdastNode::Emphasis(em) => vec![Inline::Italic(convert_inlines(&em.children))],
-            MdastNode::Delete(del) => vec![Inline::StrikeThrough(convert_inlines(&del.children))],
-            MdastNode::InlineCode(code) => vec![Inline::Code(code.value.clone())],
+            MdastNode::Text(text) => vec![Node::text(&text.value)],
+            MdastNode::Strong(strong) => {
+                vec![Node::new("strong").with_children(convert_inlines(&strong.children))]
+            }
+            MdastNode::Emphasis(em) => {
+                vec![Node::new("emphasis").with_children(convert_inlines(&em.children))]
+            }
+            MdastNode::Delete(del) => {
+                vec![Node::new("delete").with_children(convert_inlines(&del.children))]
+            }
+            MdastNode::InlineCode(code) => {
+                vec![Node::new("inlineCode").with_value(&code.value)]
+            }
             MdastNode::Link(link) => {
                 let text = convert_inlines(&link.children);
-                vec![Inline::Link(Link {
-                    url: link.url.clone(),
-                    text,
-                })]
+                vec![Node::new("link")
+                    .with_children(text)
+                    .data_str("url", &link.url)]
             }
             MdastNode::Image(img) => {
-                let alt_raw = img.alt.clone();
-                let alt = if alt_raw.is_empty() {
-                    None
+                let alt = if img.alt.is_empty() {
+                    String::new()
                 } else {
-                    Some(alt_raw)
+                    img.alt.clone()
                 };
-                vec![Inline::Image(Image {
-                    url: img.url.clone(),
-                    alt_text: alt,
-                })]
+                vec![Node::new("image")
+                    .data_str("url", &img.url)
+                    .data_str("alt", &alt)]
             }
-            MdastNode::Break(_) => vec![Inline::LineBreak],
+            MdastNode::Break(_) => vec![Node::new("break")],
             _ => vec![],
         })
         .collect()

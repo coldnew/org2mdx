@@ -33,7 +33,7 @@ fn test_all_org_files() {
         let expected = fs::read_to_string(&mdx_path)
             .unwrap_or_else(|e| panic!("Cannot read {}: {}", mdx_path.display(), e));
 
-        let actual = match org2mdx::convert(&org_content) {
+        let actual = match org2mdx::org_to_mdx::convert(&org_content) {
             Ok(s) => s,
             Err(e) => {
                 failures.push(format!("Conversion failed for {}: {}", stem, e));

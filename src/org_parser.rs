@@ -1,15 +1,15 @@
-use crate::ast::*;
+use crate::ast::Node;
 use crate::error::Result;
-// // // // use crate::heading::split_tags;
 use crate::inline_parser::parse_inline;
 use crate::util::kw;
+use serde_json::Value;
 use std::collections::HashMap;
 
 pub struct OrgParser {
     lines: Vec<String>,
     pos: usize,
     link_aliases: HashMap<String, String>,
-    frontmatter: HashMap<String, FrontmatterValue>,
+    frontmatter: HashMap<String, Value>,
 }
 
 impl OrgParser {
@@ -34,74 +34,66 @@ impl OrgParser {
         l
     }
 
-    pub fn parse(mut self) -> Result<Document> {
-        // First pass: collect directives
+    pub fn parse(mut self) -> Result<Node> {
         for line in &self.lines.clone() {
             self.process_directive(line);
         }
         self.pos = 0;
         let blocks = self.parse_blocks()?;
-        Ok(Document {
-            frontmatter: self.frontmatter,
-            blocks,
-        })
+        Ok(Node::root(blocks).with_data_map(self.frontmatter))
     }
 
     fn process_directive(&mut self, line: &str) {
         let trimmed = line.trim();
         if let Some(v) = kw(trimmed, "TITLE") {
             self.frontmatter
-                .insert("title".to_string(), FrontmatterValue::Str(v.to_string()));
+                .insert("title".to_string(), Value::String(v.to_string()));
         } else if let Some(v) = kw(trimmed, "DATE") {
             if let Some(iso) = crate::util::org_date_to_iso(v) {
                 self.frontmatter
-                    .insert("date".to_string(), FrontmatterValue::Str(iso));
+                    .insert("date".to_string(), Value::String(iso));
             }
         } else if let Some(v) = kw(trimmed, "UPDATED") {
             if let Some(iso) = crate::util::org_date_to_iso(v) {
                 self.frontmatter
-                    .insert("updated".to_string(), FrontmatterValue::Str(iso));
+                    .insert("updated".to_string(), Value::String(iso));
             }
         } else if let Some(v) = kw(trimmed, "ABBRLINK") {
             self.frontmatter
-                .insert("abbrlink".to_string(), FrontmatterValue::Str(v.to_string()));
+                .insert("abbrlink".to_string(), Value::String(v.to_string()));
         } else if let Some(v) = kw(trimmed, "TAGS") {
-            let items: Vec<String> = v
+            let items: Vec<Value> = v
                 .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
+                .map(|s| Value::String(s.trim().to_string()))
+                .filter(|v| !v.as_str().unwrap_or("").is_empty())
                 .collect();
             self.frontmatter
-                .insert("tags".to_string(), FrontmatterValue::List(items));
+                .insert("tags".to_string(), Value::Array(items));
         } else if let Some(v) = kw(trimmed, "CATEGORY") {
             self.frontmatter.insert(
                 "category".to_string(),
-                FrontmatterValue::List(vec![v.to_string()]),
+                Value::Array(vec![Value::String(v.to_string())]),
             );
         } else if let Some(v) = kw(trimmed, "AUTHOR") {
             self.frontmatter
-                .insert("author".to_string(), FrontmatterValue::Str(v.to_string()));
+                .insert("author".to_string(), Value::String(v.to_string()));
         } else if let Some(v) = kw(trimmed, "EMAIL") {
-            self.frontmatter.insert(
-                "author_email".to_string(),
-                FrontmatterValue::Str(v.to_string()),
-            );
+            self.frontmatter
+                .insert("author_email".to_string(), Value::String(v.to_string()));
         } else if let Some(v) = kw(trimmed, "ALIAS") {
             let list = self
                 .frontmatter
                 .entry("alias".to_string())
-                .or_insert(FrontmatterValue::List(vec![]));
-            if let FrontmatterValue::List(ref mut l) = list {
-                l.push(v.to_string());
+                .or_insert_with(|| Value::Array(vec![]));
+            if let Value::Array(ref mut l) = list {
+                l.push(Value::String(v.to_string()));
             }
         } else if let Some(v) = kw(trimmed, "LANGUAGE") {
             self.frontmatter
-                .insert("language".to_string(), FrontmatterValue::Str(v.to_string()));
+                .insert("language".to_string(), Value::String(v.to_string()));
         } else if let Some(v) = kw(trimmed, "ATTR_HTML") {
-            self.frontmatter.insert(
-                "attr_html".to_string(),
-                FrontmatterValue::Str(v.to_string()),
-            );
+            self.frontmatter
+                .insert("attr_html".to_string(), Value::String(v.to_string()));
         } else if let Some(v) = kw(trimmed, "LINK") {
             if let Some(sp) = v.find(char::is_whitespace) {
                 let name = v[..sp].trim().to_string();
@@ -111,35 +103,34 @@ impl OrgParser {
         }
     }
 
-    fn parse_blocks(&mut self) -> Result<Vec<Block>> {
+    fn parse_blocks(&mut self) -> Result<Vec<Node>> {
         let mut blocks = Vec::new();
         while self.pos < self.lines.len() {
             let line = self.lines[self.pos].clone();
             let trimmed = line.trim();
             if trimmed.is_empty() {
-                blocks.push(Block::BlankLine);
+                blocks.push(Node::new("blankLine"));
                 self.advance();
                 continue;
             }
-            // Handle headings
             if let Some((depth, title, tags)) = crate::heading::parse_heading(&line) {
                 if crate::heading::should_skip_section(&tags) {
                     self.skip_section(depth);
                     continue;
                 }
                 let content = parse_inline(title, &self.link_aliases);
-                let heading = Heading {
-                    level: depth as u8,
-                    content,
-                    tags: tags.into_iter().map(|s| s.to_string()).collect(),
-                    todo_keyword: None,
-                    priority: None,
-                };
-                blocks.push(Block::Heading(heading));
+                let tags_vec: Vec<Value> = tags
+                    .into_iter()
+                    .map(|s| Value::String(s.to_string()))
+                    .collect();
+                let heading = Node::new("heading")
+                    .with_children(content)
+                    .data_num("depth", depth as u8)
+                    .data_list_val("tags", tags_vec);
+                blocks.push(heading);
                 self.advance();
                 continue;
             }
-            // Handle code blocks (#+begin_src etc)
             let tl_lower = trimmed.to_lowercase();
             if tl_lower.starts_with("#+begin_src")
                 || tl_lower.starts_with("#+begin_example")
@@ -152,47 +143,40 @@ impl OrgParser {
                 blocks.push(block);
                 continue;
             }
-            // Handle #+JSX: and #+HTML: as HtmlBlock (body content)
             if let Some(v) = kw(trimmed, "JSX") {
-                blocks.push(Block::HtmlBlock(v.trim().to_string()));
+                blocks.push(Node::new("html").with_value(v.trim()));
                 self.advance();
                 continue;
             }
             if let Some(v) = kw(trimmed, "HTML") {
-                blocks.push(Block::HtmlBlock(v.trim().to_string()));
+                blocks.push(Node::new("html").with_value(v.trim()));
                 self.advance();
                 continue;
             }
-            // Skip other #+ and #- directive lines (already processed in process_directive)
             if trimmed.starts_with("#+") || trimmed.starts_with("#-") {
                 self.advance();
                 continue;
             }
-            // Handle : prefix example blocks
             if line.starts_with(": ") || line == ":" {
                 let code = self.parse_colon_block();
-                blocks.push(Block::CodeBlock(CodeBlock {
-                    language: None,
-                    content: code,
-                }));
+                blocks.push(Node::new("code").with_value(&code));
                 continue;
             }
-            // Handle unordered list
             if crate::list::is_unordered_item(&line) {
                 let list = self.parse_unordered_list()?;
-                blocks.push(Block::List(list));
+                blocks.push(list);
                 continue;
             }
-            // Handle ordered list
             if crate::list::is_ordered_item(&line) {
                 let list = self.parse_ordered_list()?;
-                blocks.push(Block::List(list));
+                blocks.push(list);
                 continue;
             }
-            // Handle paragraphs
             let (para, _had_lb) = self.parse_paragraph();
-            if !para.content.is_empty() {
-                blocks.push(Block::Paragraph(para));
+            if let Some(ref children) = para.children {
+                if !children.is_empty() {
+                    blocks.push(para);
+                }
             }
         }
         Ok(blocks)
@@ -210,7 +194,7 @@ impl OrgParser {
         }
     }
 
-    fn parse_block(&mut self, start_line: &str) -> Result<Block> {
+    fn parse_block(&mut self, start_line: &str) -> Result<Node> {
         let block_type = crate::block::parse_block_begin(start_line);
         self.advance();
         let end_kw = block_type.end_keyword();
@@ -240,10 +224,9 @@ impl OrgParser {
                     .map(|l| crate::util::strip_prefix_spaces(l, min_indent).to_string())
                     .collect();
                 let content = stripped.join("\n");
-                Ok(Block::CodeBlock(CodeBlock {
-                    language: Some(lang),
-                    content,
-                }))
+                Ok(Node::new("code")
+                    .with_value(&content)
+                    .data_str("lang", &lang))
             }
             crate::block::BlockType::Example => {
                 let min_indent = lines
@@ -257,45 +240,36 @@ impl OrgParser {
                     .map(|l| crate::util::strip_prefix_spaces(l, min_indent).to_string())
                     .collect();
                 let content = stripped.join("\n");
-                Ok(Block::CodeBlock(CodeBlock {
-                    language: None,
-                    content,
-                }))
+                Ok(Node::new("code").with_value(&content))
             }
             crate::block::BlockType::Quote => {
                 let mut quote_blocks = Vec::new();
                 for line in lines {
                     let trimmed = line.trim();
                     if trimmed.is_empty() {
-                        quote_blocks.push(Block::BlankLine);
+                        quote_blocks.push(Node::new("blankLine"));
                     } else {
-                        let para = Paragraph {
-                            content: parse_inline(trimmed, &self.link_aliases),
-                            hard_line_break: false,
-                        };
-                        quote_blocks.push(Block::Paragraph(para));
+                        let para = Node::new("paragraph")
+                            .with_children(parse_inline(trimmed, &self.link_aliases));
+                        quote_blocks.push(para);
                     }
                 }
-                Ok(Block::QuoteBlock(QuoteBlock {
-                    blocks: quote_blocks,
-                }))
+                Ok(Node::new("blockquote").with_children(quote_blocks))
             }
             crate::block::BlockType::Center => {
                 let content = lines.join(" ");
-                let para = Paragraph {
-                    content: parse_inline(&content, &self.link_aliases),
-                    hard_line_break: false,
-                };
-                Ok(Block::Paragraph(para))
+                Ok(
+                    Node::new("paragraph")
+                        .with_children(parse_inline(&content, &self.link_aliases)),
+                )
             }
-            crate::block::BlockType::Export => Ok(Block::HtmlBlock(String::new())),
+            crate::block::BlockType::Export => Ok(Node::new("html")),
             crate::block::BlockType::Unknown(_) => {
                 let content = lines.join(" ");
-                let para = Paragraph {
-                    content: parse_inline(&content, &self.link_aliases),
-                    hard_line_break: false,
-                };
-                Ok(Block::Paragraph(para))
+                Ok(
+                    Node::new("paragraph")
+                        .with_children(parse_inline(&content, &self.link_aliases)),
+                )
             }
         }
     }
@@ -316,7 +290,7 @@ impl OrgParser {
         lines.join("\n")
     }
 
-    fn parse_paragraph(&mut self) -> (Paragraph, bool) {
+    fn parse_paragraph(&mut self) -> (Node, bool) {
         let mut parts = Vec::new();
         let mut had_line_break = false;
         while let Some(line) = self.peek() {
@@ -347,16 +321,17 @@ impl OrgParser {
         let joined = parts.join("\n");
         let normalized = crate::util::collapse_spaces(&joined);
         let content = parse_inline(&normalized, &self.link_aliases);
-        (
-            Paragraph {
-                content,
-                hard_line_break: had_line_break,
-            },
-            had_line_break,
-        )
+        let para = if had_line_break {
+            Node::new("paragraph")
+                .with_children(content)
+                .data_bool("hardLineBreak", true)
+        } else {
+            Node::new("paragraph").with_children(content)
+        };
+        (para, had_line_break)
     }
 
-    fn parse_unordered_list(&mut self) -> Result<List> {
+    fn parse_unordered_list(&mut self) -> Result<Node> {
         let mut items = Vec::new();
         while let Some(line) = self.peek() {
             if !crate::list::is_unordered_item(line) {
@@ -364,29 +339,22 @@ impl OrgParser {
             }
             let content_raw = crate::list::unordered_content(line);
             let content_inline = parse_inline(content_raw.trim(), &self.link_aliases);
-            let mut item_blocks = vec![Block::Paragraph(Paragraph {
-                content: content_inline,
-                hard_line_break: false,
-            })];
+            let mut item_blocks = vec![Node::new("paragraph").with_children(content_inline)];
             self.advance();
-            // Check for nested content (indented lines)
             let nested = self.parse_list_nested()?;
-            if !nested.items.is_empty() {
-                item_blocks.push(Block::List(nested));
+            if let Some(ref nc) = nested.children {
+                if !nc.is_empty() {
+                    item_blocks.push(nested);
+                }
             }
-            items.push(ListItem {
-                content: item_blocks,
-                children: vec![],
-                checkbox: None,
-            });
+            items.push(Node::new("listItem").with_children(item_blocks));
         }
-        Ok(List {
-            kind: ListKind::Unordered,
-            items,
-        })
+        Ok(Node::new("list")
+            .with_children(items)
+            .data_bool("ordered", false))
     }
 
-    fn parse_ordered_list(&mut self) -> Result<List> {
+    fn parse_ordered_list(&mut self) -> Result<Node> {
         let mut items = Vec::new();
         while let Some(line) = self.peek() {
             if !crate::list::is_ordered_item(line) {
@@ -394,28 +362,22 @@ impl OrgParser {
             }
             let (_, content_raw) = crate::list::ordered_parts(line);
             let content_inline = parse_inline(content_raw.trim(), &self.link_aliases);
-            let mut item_blocks = vec![Block::Paragraph(Paragraph {
-                content: content_inline,
-                hard_line_break: false,
-            })];
+            let mut item_blocks = vec![Node::new("paragraph").with_children(content_inline)];
             self.advance();
             let nested = self.parse_list_nested()?;
-            if !nested.items.is_empty() {
-                item_blocks.push(Block::List(nested));
+            if let Some(ref nc) = nested.children {
+                if !nc.is_empty() {
+                    item_blocks.push(nested);
+                }
             }
-            items.push(ListItem {
-                content: item_blocks,
-                children: vec![],
-                checkbox: None,
-            });
+            items.push(Node::new("listItem").with_children(item_blocks));
         }
-        Ok(List {
-            kind: ListKind::Ordered,
-            items,
-        })
+        Ok(Node::new("list")
+            .with_children(items)
+            .data_bool("ordered", true))
     }
 
-    fn parse_list_nested(&mut self) -> Result<List> {
+    fn parse_list_nested(&mut self) -> Result<Node> {
         let mut items = Vec::new();
         while let Some(line) = self.peek() {
             if !line.starts_with("  ") {
@@ -429,38 +391,29 @@ impl OrgParser {
             if crate::list::is_unordered_item(trimmed) {
                 let content_raw = crate::list::unordered_content(trimmed);
                 let content_inline = parse_inline(content_raw.trim(), &self.link_aliases);
-                items.push(ListItem {
-                    content: vec![Block::Paragraph(Paragraph {
-                        content: content_inline,
-                        hard_line_break: false,
-                    })],
-                    children: vec![],
-                    checkbox: None,
-                });
+                items.push(
+                    Node::new("listItem")
+                        .with_children(vec![Node::new("paragraph").with_children(content_inline)]),
+                );
                 self.advance();
             } else if crate::list::is_ordered_item(trimmed) {
                 let (_, content_raw) = crate::list::ordered_parts(trimmed);
                 let content_inline = parse_inline(content_raw.trim(), &self.link_aliases);
-                items.push(ListItem {
-                    content: vec![Block::Paragraph(Paragraph {
-                        content: content_inline,
-                        hard_line_break: false,
-                    })],
-                    children: vec![],
-                    checkbox: None,
-                });
+                items.push(
+                    Node::new("listItem")
+                        .with_children(vec![Node::new("paragraph").with_children(content_inline)]),
+                );
                 self.advance();
             } else {
                 break;
             }
         }
-        Ok(List {
-            kind: ListKind::Unordered,
-            items,
-        })
+        Ok(Node::new("list")
+            .with_children(items)
+            .data_bool("ordered", false))
     }
 }
 
-pub fn parse_org(input: &str) -> Result<Document> {
+pub fn parse_org(input: &str) -> Result<Node> {
     OrgParser::new(input).parse()
 }

@@ -30,47 +30,6 @@ pub fn strip_prefix_spaces(s: &str, n: usize) -> &str {
     &s[count..]
 }
 
-pub fn markup_at(chars: &[char], start: usize, delim: char) -> Option<(String, usize)> {
-    if chars[start] != delim {
-        return None;
-    }
-    if chars.len() <= start + 1 {
-        return None;
-    }
-    if start > 0 {
-        let prev = chars[start - 1];
-        if prev.is_alphanumeric() || prev == ':' || prev == '/' || prev == '~' {
-            return None;
-        }
-    }
-    if chars[start + 1].is_whitespace() {
-        return None;
-    }
-
-    let mut i = start + 1;
-    while i < chars.len() {
-        if chars[i] == delim && !chars[i - 1].is_whitespace() && i > start + 1 {
-            let after_ok = if i + 1 < chars.len() {
-                let next = chars[i + 1];
-                !next.is_alphanumeric() || matches!(next, ',' | '.' | ';' | ':' | '!' | '?')
-            } else {
-                true
-            };
-            if after_ok {
-                let inner: String = chars[start + 1..i].iter().collect();
-                if delim == '/' && inner.contains('/') {
-                    i += 1;
-                    continue;
-                }
-                let consumed: usize = i - start + 1;
-                return Some((inner, consumed));
-            }
-        }
-        i += 1;
-    }
-    None
-}
-
 pub fn pct_encode(path: &str) -> String {
     let mut out = String::new();
     for c in path.chars() {

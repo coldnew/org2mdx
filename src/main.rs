@@ -5,24 +5,18 @@ use std::fs;
 #[command(name = "org2mdx")]
 #[command(about = "Convert between Org and MDX", long_about = None)]
 struct Cli {
-    /// Input file path
     input: String,
-
-    /// Output file path (optional)
     output: Option<String>,
 
-    /// Input format: org or mdx
     #[arg(long, default_value = "org")]
     from: String,
 
-    /// Output format: mdx or org
     #[arg(long, default_value = "mdx")]
     to: String,
 }
 
 fn main() {
     let cli = Cli::parse();
-
     let input_content = fs::read_to_string(&cli.input).expect("failed to read input file");
 
     let output_content = match (cli.from.as_str(), cli.to.as_str()) {

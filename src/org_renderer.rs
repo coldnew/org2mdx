@@ -1,53 +1,34 @@
-use crate::ast::*;
+use crate::ast::Node;
 
-pub fn render_org(doc: &Document) -> String {
+pub fn render_org(root: &Node) -> String {
     let mut out = String::new();
-    if !doc.frontmatter.is_empty() {
+    if !root.data.is_empty() {
         let ordered_keys = [
             "title", "date", "updated", "abbrlink", "options", "tags", "language", "alias",
         ];
-        let has_options = doc
-            .frontmatter
-            .keys()
-            .any(|k| k.to_lowercase() == "options");
+        let has_options = root.data.keys().any(|k| k.to_lowercase() == "options");
         for key in ordered_keys.iter() {
             if *key == "options" && !has_options {
                 out.push_str("#+OPTIONS: num:nil ^:nil\n");
                 continue;
             }
-            if let Some(value) = doc.frontmatter.get(*key) {
-                match value {
-                    FrontmatterValue::Str(s) => {
-                        out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), s))
-                    }
-                    FrontmatterValue::List(list) => {
-                        for item in list {
-                            out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), item));
-                        }
-                    }
-                }
+            if let Some(value) = root.data.get(*key) {
+                render_frontmatter_org(&mut out, key, value);
             }
         }
-        for key in doc.frontmatter.keys() {
+        for key in root.data.keys() {
             let k_lower = key.to_lowercase();
             if !ordered_keys.contains(&k_lower.as_str()) {
-                let value = &doc.frontmatter[key];
-                match value {
-                    FrontmatterValue::Str(s) => {
-                        out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), s))
-                    }
-                    FrontmatterValue::List(list) => {
-                        for item in list {
-                            out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), item));
-                        }
-                    }
-                }
+                let value = &root.data[key];
+                render_frontmatter_org(&mut out, key, value);
             }
         }
         out.push('\n');
     }
-    for block in &doc.blocks {
-        render_block_org(&mut out, block);
+    if let Some(children) = &root.children {
+        for block in children {
+            render_node_org(&mut out, block);
+        }
     }
     while out.ends_with('\n') {
         out.pop();
@@ -56,118 +37,144 @@ pub fn render_org(doc: &Document) -> String {
     out
 }
 
-fn render_block_org(out: &mut String, block: &Block) {
-    match block {
-        Block::Heading(h) => {
-            let prefix = "*".repeat(h.level as usize);
-            let content = render_inline_org(&h.content);
-            out.push_str(&format!("{} {}\n", prefix, content));
-            if !h.tags.is_empty() {
-                out.push_str(&format!(" :{}:\n", h.tags.join(":")));
+fn render_frontmatter_org(out: &mut String, key: &str, value: &serde_json::Value) {
+    match value {
+        serde_json::Value::String(s) => out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), s)),
+        serde_json::Value::Array(list) => {
+            for item in list {
+                if let Some(s) = item.as_str() {
+                    out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), s));
+                }
             }
         }
-        Block::Paragraph(p) => {
-            let content = render_inline_org(&p.content);
+        _ => {}
+    }
+}
+
+fn render_node_org(out: &mut String, node: &Node) {
+    match node.r#type.as_str() {
+        "heading" => {
+            let depth = node.get_data_num("depth").unwrap_or(1) as usize;
+            let prefix = "*".repeat(depth);
+            let content = render_inlines_org(&node.children);
+            out.push_str(&format!("{} {}\n", prefix, content));
+            let tags = node.get_data_list("tags");
+            if !tags.is_empty() {
+                out.push_str(&format!(" :{}:\n", tags.join(":")));
+            }
+        }
+        "paragraph" => {
+            let content = render_inlines_org(&node.children);
             if !content.is_empty() {
-                if p.hard_line_break {
+                if node.get_data_bool("hardLineBreak").unwrap_or(false) {
                     out.push_str(&format!("{}\\\\\n\n", content));
                 } else {
                     out.push_str(&format!("{}\n\n", content));
                 }
             }
         }
-        Block::List(list) => render_list_org(out, list, 0),
-        Block::CodeBlock(cb) => {
-            if let Some(_lang) = &cb.language {
-                out.push_str(&format!("#+BEGIN_SRC {}\n", _lang));
+        "list" => render_list_org(out, node, 0),
+        "code" => {
+            if let Some(lang) = node.get_data_str("lang") {
+                out.push_str(&format!("#+BEGIN_SRC {}\n", lang));
             } else {
                 out.push_str("#+BEGIN_EXAMPLE\n");
             }
-            for line in cb.content.lines() {
-                out.push_str(&format!("  {}\n", line));
+            if let Some(val) = &node.value {
+                for line in val.lines() {
+                    out.push_str(&format!("  {}\n", line));
+                }
+                if val.ends_with('\n') {
+                    out.pop();
+                    out.push('\n');
+                }
             }
-            if cb.content.ends_with('\n') {
-                out.pop();
-                out.push('\n');
-            }
-            if let Some(_lang) = &cb.language {
+            if node.get_data_str("lang").is_some() {
                 out.push_str("#+END_SRC\n\n");
             } else {
                 out.push_str("#+END_EXAMPLE\n\n");
             }
         }
-        Block::QuoteBlock(qb) => {
+        "blockquote" => {
             out.push_str("#+begin_quote\n");
-            for block in &qb.blocks {
-                render_block_org(out, block);
+            if let Some(children) = &node.children {
+                for child in children {
+                    render_node_org(out, child);
+                }
             }
             out.push_str("#+end_quote\n\n");
         }
-        Block::HorizontalRule => out.push_str("----\n\n"),
-        Block::BlankLine => out.push('\n'),
-        Block::HtmlBlock(html) => {
-            out.push_str(&format!("#+JSX: {}\n\n", html));
+        "thematicBreak" => out.push_str("----\n\n"),
+        "blankLine" => out.push('\n'),
+        "html" => {
+            if let Some(val) = &node.value {
+                out.push_str(&format!("#+JSX: {}\n\n", val));
+            }
         }
+        _ => {}
     }
 }
 
-fn render_list_org(out: &mut String, list: &List, indent: usize) {
+fn render_list_org(out: &mut String, node: &Node, indent: usize) {
     let indent_str = "  ".repeat(indent);
-    for (i, item) in list.items.iter().enumerate() {
-        match list.kind {
-            ListKind::Unordered => out.push_str(&format!("{}- ", indent_str)),
-            ListKind::Ordered => out.push_str(&format!("{}{}. ", indent_str, i + 1)),
-            ListKind::Description => out.push_str(&format!("{}- ", indent_str)),
-        }
-        let mut item_out = String::new();
-        for block in &item.content {
-            render_block_org(&mut item_out, block);
-        }
-        let first_line = item_out.lines().next().unwrap_or("");
-        out.push_str(first_line);
-        out.push('\n');
-        for child in &item.children {
-            render_list_org(
-                out,
-                &List {
-                    kind: list.kind.clone(),
-                    items: vec![child.clone()],
-                },
-                indent + 1,
-            );
-        }
-        let rest: Vec<&str> = item_out.lines().skip(1).collect();
-        for line in rest {
-            out.push_str(&format!("{}{}\n", indent_str, line));
+    let ordered = node.get_data_bool("ordered").unwrap_or(false);
+    if let Some(items) = &node.children {
+        for (i, item) in items.iter().enumerate() {
+            if ordered {
+                out.push_str(&format!("{}{}. ", indent_str, i + 1));
+            } else {
+                out.push_str(&format!("{}- ", indent_str));
+            }
+            let mut item_out = String::new();
+            if let Some(children) = &item.children {
+                for child in children {
+                    render_node_org(&mut item_out, child);
+                }
+            }
+            let first_line = item_out.lines().next().unwrap_or("");
+            out.push_str(first_line);
+            out.push('\n');
+            let rest: Vec<&str> = item_out.lines().skip(1).collect();
+            for line in rest {
+                out.push_str(&format!("{}{}\n", indent_str, line));
+            }
         }
     }
     out.push('\n');
 }
 
-fn render_inline_org(inlines: &[Inline]) -> String {
+fn render_inlines_org(children: &Option<Vec<Node>>) -> String {
     let mut out = String::new();
-    for inline in inlines {
-        match inline {
-            Inline::Text(s) => out.push_str(s),
-            Inline::Bold(children) => out.push_str(&format!("*{}*", render_inline_org(children))),
-            Inline::Italic(children) => out.push_str(&format!("/{}/", render_inline_org(children))),
-            Inline::Underline(children) => {
-                out.push_str(&format!("_{}_", render_inline_org(children)))
+    if let Some(inlines) = children {
+        for inline in inlines {
+            match inline.r#type.as_str() {
+                "text" => {
+                    if let Some(val) = &inline.value {
+                        out.push_str(val);
+                    }
+                }
+                "strong" => out.push_str(&format!("*{}*", render_inlines_org(&inline.children))),
+                "emphasis" => out.push_str(&format!("/{}/", render_inlines_org(&inline.children))),
+                "underline" => out.push_str(&format!("_{}_", render_inlines_org(&inline.children))),
+                "delete" => out.push_str(&format!("+{}+", render_inlines_org(&inline.children))),
+                "inlineCode" => {
+                    if let Some(val) = &inline.value {
+                        out.push_str(&format!("~{}~", val));
+                    }
+                }
+                "link" => {
+                    let text = render_inlines_org(&inline.children);
+                    let url = inline.get_data_str("url").unwrap_or("");
+                    out.push_str(&format!("[[{}][{}]]", url, text));
+                }
+                "image" => {
+                    let alt = inline.get_data_str("alt").unwrap_or("");
+                    let url = inline.get_data_str("url").unwrap_or("");
+                    out.push_str(&format!("[[file:{}][{}]]", url, alt));
+                }
+                "break" => out.push_str("\\\\\n"),
+                _ => {}
             }
-            Inline::StrikeThrough(children) => {
-                out.push_str(&format!("+{}+", render_inline_org(children)))
-            }
-            Inline::Code(s) => out.push_str(&format!("~{}~", s)),
-            Inline::Verbatim(s) => out.push_str(&format!("={}=", s)),
-            Inline::Link(link) => {
-                let text = render_inline_org(&link.text);
-                out.push_str(&format!("[[{}][{}]]", link.url, text));
-            }
-            Inline::Image(img) => {
-                let alt = img.alt_text.as_deref().unwrap_or("");
-                out.push_str(&format!("[[file:{}][{}]]", img.url, alt));
-            }
-            Inline::LineBreak => out.push_str("\\\\\n"),
         }
     }
     out

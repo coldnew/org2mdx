@@ -148,6 +148,16 @@ fn render_node_org(out: &mut String, node: &Node, mdx_html: &str) {
                 }
             }
         }
+        "export" => {
+            let export_type = node.get_data_str("lang").unwrap_or("");
+            out.push_str(&format!("#+begin_export {}\n", export_type));
+            if let Some(val) = &node.value {
+                for line in val.lines() {
+                    out.push_str(&format!("{}\n", line));
+                }
+            }
+            out.push_str("#+end_export\n\n");
+        }
         _ => {}
     }
 }

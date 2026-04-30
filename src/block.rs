@@ -3,7 +3,7 @@ pub enum BlockType {
     Example,
     Quote,
     Center,
-    Export,
+    Export(String),
     Unknown(String),
 }
 
@@ -14,7 +14,7 @@ impl BlockType {
             BlockType::Example => "example".to_string(),
             BlockType::Quote => "quote".to_string(),
             BlockType::Center => "center".to_string(),
-            BlockType::Export => "export".to_string(),
+            BlockType::Export(_) => "export".to_string(),
             BlockType::Unknown(name) => name.clone(),
         }
     }
@@ -36,7 +36,13 @@ pub fn parse_block_begin(line: &str) -> BlockType {
     } else if lower.starts_with("#+begin_center") {
         BlockType::Center
     } else if lower.starts_with("#+begin_export") {
-        BlockType::Export
+        let export_type = line
+            .trim()
+            .strip_prefix("#+begin_export")
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        BlockType::Export(export_type)
     } else {
         let name = lower
             .strip_prefix("#+begin_")

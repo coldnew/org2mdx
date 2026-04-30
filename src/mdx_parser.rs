@@ -8,10 +8,105 @@ use std::collections::HashMap;
 
 pub fn parse_mdx(input: &str) -> Result<Node> {
     let (frontmatter, body) = extract_frontmatter(input);
-    let mdast = to_mdast(body, &markdown::ParseOptions::default())
+    let (processed_body, exports) = extract_export_blocks(body);
+    let mdast = to_mdast(&processed_body, &markdown::ParseOptions::default())
         .map_err(|e| crate::error::Error::InvalidOrgFile(e.to_string()))?;
     let blocks = convert_node(&mdast);
+    let blocks = merge_exports(blocks, &exports);
     Ok(Node::root(blocks).with_data_map(frontmatter))
+}
+
+struct ExportBlock {
+    export_type: String,
+    content: String,
+}
+
+fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
+    let begin_marker = "{/* #+begin_export";
+    let end_marker = "{/* #+end_export";
+
+    let lines: Vec<&str> = body.lines().collect();
+    let mut result = Vec::new();
+    let mut exports = Vec::new();
+    let mut i = 0;
+
+    while i < lines.len() {
+        let trimmed = lines[i].trim();
+        if trimmed.starts_with(begin_marker) && trimmed.ends_with("*/}") {
+            let inner = trimmed
+                .strip_prefix(begin_marker)
+                .unwrap()
+                .strip_suffix("*/}")
+                .unwrap()
+                .trim();
+            let export_type = inner.to_string();
+
+            i += 1;
+            let mut content_lines = Vec::new();
+
+            while i < lines.len() {
+                let t = lines[i].trim();
+                if t.starts_with(end_marker) && t.ends_with("*/}") {
+                    i += 1;
+                    break;
+                }
+                content_lines.push(lines[i].to_string());
+                i += 1;
+            }
+
+            let content = content_lines.join("\n");
+            let idx = exports.len();
+
+            exports.push(ExportBlock {
+                export_type,
+                content,
+            });
+
+            result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
+        } else {
+            result.push(lines[i].to_string());
+            i += 1;
+        }
+    }
+
+    (result.join("\n"), exports)
+}
+
+fn merge_exports(blocks: Vec<Node>, exports: &[ExportBlock]) -> Vec<Node> {
+    let mut result = Vec::new();
+    for block in blocks {
+        let mut handled = false;
+        if block.r#type == "paragraph" {
+            if let Some(children) = &block.children {
+                for child in children {
+                    if child.r#type == "text" {
+                        if let Some(val) = &child.value {
+                            let trimmed = val.trim();
+                            for (idx, exp) in exports.iter().enumerate() {
+                                let placeholder = format!("EXPORTBLOCKPLACEHOLDER{}", idx);
+                                if trimmed == placeholder {
+                                    result.push(
+                                        Node::new("export")
+                                            .with_value(&exp.content)
+                                            .data_str("lang", &exp.export_type),
+                                    );
+                                    handled = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if handled {
+                        break;
+                    }
+                }
+            }
+        }
+        if !handled {
+            result.push(block);
+        }
+    }
+    result
 }
 
 fn extract_frontmatter(input: &str) -> (HashMap<String, Value>, &str) {

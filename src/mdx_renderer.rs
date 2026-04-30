@@ -135,6 +135,18 @@ fn render_node(out: &mut String, node: &Node) {
                 out.push('\n');
             }
         }
+        "export" => {
+            if let Some(export_type) = node.get_data_str("lang") {
+                out.push_str(&format!("{{/* #+begin_export {} */}}\n", export_type));
+            }
+            if let Some(val) = &node.value {
+                out.push_str(val);
+                out.push('\n');
+            }
+            if let Some(export_type) = node.get_data_str("lang") {
+                out.push_str(&format!("{{/* #+end_export {} */}}\n", export_type));
+            }
+        }
         _ => {}
     }
 }

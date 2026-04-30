@@ -305,7 +305,12 @@ impl OrgParser {
                         .with_children(parse_inline(&content, &self.link_aliases)),
                 )
             }
-            crate::block::BlockType::Export => Ok(Node::new("html")),
+            crate::block::BlockType::Export(export_type) => {
+                let content = lines.join("\n");
+                Ok(Node::new("export")
+                    .with_value(&content)
+                    .data_str("lang", &export_type))
+            }
             crate::block::BlockType::Unknown(_) => {
                 let content = lines.join(" ");
                 Ok(

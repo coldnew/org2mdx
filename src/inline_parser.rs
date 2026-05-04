@@ -179,6 +179,21 @@ fn parse_link_or_image(
             consumed,
         ));
     }
+    if let Some((alias, suffix)) = target.split_once(':') {
+        if let Some(base_url) = link_aliases.get(alias) {
+            let full_url = format!("{}{}", base_url, suffix);
+            let link_text = format!("{}:{}", alias, suffix);
+            let text = desc.as_deref().unwrap_or(&link_text).to_string();
+            let text_nodes = parse_inline(&text, link_aliases);
+            let url_escaped = escape_url_parens(&full_url);
+            return Some((
+                Node::new("link")
+                    .with_children(text_nodes)
+                    .data_str("url", &url_escaped),
+                consumed,
+            ));
+        }
+    }
     let url = escape_url_parens(&target);
     if let Some(d) = desc {
         let text_nodes = parse_inline(&d, link_aliases);

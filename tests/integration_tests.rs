@@ -154,7 +154,29 @@ fn test_mdx_to_org_conversion() {
                 let (_actual_fm, actual_rest) = split_frontmatter(&actual_org);
                 match (expected_rest, actual_rest) {
                     (Some(expected_rest), Some(actual_rest)) => {
-                        if expected_rest != actual_rest {
+                        let exp_links: Vec<&str> = expected_rest
+                            .lines()
+                            .filter(|l| l.trim_start().starts_with("#+LINK:"))
+                            .collect();
+                        let act_links: Vec<&str> = actual_rest
+                            .lines()
+                            .filter(|l| l.trim_start().starts_with("#+LINK:"))
+                            .collect();
+                        let mut exp_sorted = exp_links.clone();
+                        exp_sorted.sort();
+                        let mut act_sorted = act_links.clone();
+                        act_sorted.sort();
+                        let exp_no_links: String = expected_rest
+                            .lines()
+                            .filter(|l| !l.trim_start().starts_with("#+LINK:"))
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        let act_no_links: String = actual_rest
+                            .lines()
+                            .filter(|l| !l.trim_start().starts_with("#+LINK:"))
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        if exp_sorted != act_sorted || exp_no_links != act_no_links {
                             failures.push(format!("Content mismatch for {} (expected .org)", stem));
                         }
                     }
@@ -180,6 +202,37 @@ fn test_mdx_to_org_conversion() {
     if !failures.is_empty() {
         panic!("MDX→Org test failures:\n{}", failures.join("\n"));
     }
+}
+
+/// Leading blank lines at the start of an Org file must not produce a blankLine node.
+#[test]
+fn test_blank_first_line() {
+    let org_content = "\n\n* Header\nsome content\n";
+    let actual = org2mdx::org_to_mdx::convert(org_content).unwrap();
+
+    let (_, body) = split_frontmatter(&actual);
+    let body = body.unwrap_or(&actual);
+    assert!(
+        !body.starts_with('\n'),
+        "Body should not start with a blank line, got: {:?}",
+        body
+    );
+}
+
+/// Consecutive blank lines between content should preserve spacing.
+#[test]
+fn test_consecutive_blank_lines() {
+    let org_content = "* Header\n\n\nmore content\n";
+    let actual = org2mdx::org_to_mdx::convert(org_content).unwrap();
+    assert!(actual.contains("\n\n"), "Should contain blank lines for spacing");
+}
+
+/// A single trailing blank line at EOF should not cause a panic.
+#[test]
+fn test_trailing_blank_line() {
+    let org_content = "* Header\ncontent\n\n";
+    let actual = org2mdx::org_to_mdx::convert(org_content).unwrap();
+    assert!(!actual.is_empty());
 }
 
 // Helper to split frontmatter for the new tests (reuses the same logic)

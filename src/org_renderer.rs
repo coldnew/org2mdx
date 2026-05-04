@@ -1,4 +1,5 @@
 use crate::ast::Node;
+use std::collections::HashSet;
 
 const ORDERED_FRONTMATTER_KEYS: [&str; 10] = [
     "title", "date", "updated", "abbrlink", "author", "email", "options", "tags", "language",
@@ -32,8 +33,6 @@ pub fn render_org(root: &Node) -> String {
                     if let Some(mdx_val) = opts.get("mdx").and_then(|v| v.as_str()) {
                         out.push_str(&format!("#+OPTIONS: mdx: {}\n", mdx_val));
                     }
-                } else {
-                    out.push_str("#+OPTIONS: num:nil ^:nil\n");
                 }
                 continue;
             }
@@ -56,6 +55,13 @@ pub fn render_org(root: &Node) -> String {
         }
         out.push('\n');
     }
+    let link_abbreviations = collect_link_abbreviations(root);
+    if !link_abbreviations.is_empty() {
+        for (abbrev, base_url) in &link_abbreviations {
+            out.push_str(&format!("#+LINK: {:6}{}\n", abbrev, base_url));
+        }
+        out.push('\n');
+    }
     let mdx_html = root
         .data
         .get("org")
@@ -65,7 +71,7 @@ pub fn render_org(root: &Node) -> String {
         .unwrap_or("jsx");
     if let Some(children) = &root.children {
         for block in children {
-            render_node_org(&mut out, block, mdx_html);
+            render_node_org(&mut out, block, mdx_html, &link_abbreviations);
         }
     }
     while out.ends_with('\n') {
@@ -98,12 +104,63 @@ fn render_frontmatter_org(out: &mut String, key: &str, value: &serde_json::Value
     }
 }
 
-fn render_node_org(out: &mut String, node: &Node, mdx_html: &str) {
+fn collect_link_abbreviations(root: &Node) -> Vec<(String, String)> {
+    let mut result = Vec::new();
+    let mut seen = HashSet::new();
+    collect_abbreviations_recursive(root, &mut result, &mut seen);
+    result
+}
+
+fn collect_abbreviations_recursive(
+    node: &Node,
+    result: &mut Vec<(String, String)>,
+    seen: &mut HashSet<String>,
+) {
+    if node.r#type == "link" {
+        let text = render_inlines_simple(&node.children);
+        if let Some((abbrev, path)) = text.split_once(':') {
+            if !abbrev.is_empty() && !path.is_empty() && !seen.contains(abbrev) {
+                let url = node.get_data_str("url").unwrap_or("");
+                if url.ends_with(path) {
+                    let base_url = &url[..url.len() - path.len()];
+                    seen.insert(abbrev.to_string());
+                    result.push((abbrev.to_string(), base_url.to_string()));
+                }
+            }
+        }
+    }
+    if let Some(children) = &node.children {
+        for child in children {
+            collect_abbreviations_recursive(child, result, seen);
+        }
+    }
+}
+
+fn render_inlines_simple(children: &Option<Vec<Node>>) -> String {
+    let mut out = String::new();
+    if let Some(inlines) = children {
+        for inline in inlines {
+            if inline.r#type == "text" {
+                if let Some(val) = &inline.value {
+                    out.push_str(val);
+                }
+            }
+        }
+    }
+    out
+}
+
+fn render_node_org(
+    out: &mut String,
+    node: &Node,
+    mdx_html: &str,
+    link_abbreviations: &[(String, String)],
+) {
     match node.r#type.as_str() {
         "heading" => {
             let depth = node.get_data_num("depth").unwrap_or(1) as usize;
             let prefix = "*".repeat(depth);
-            let content = render_inlines_org(&node.children);
+            let content = render_inlines_org(&node.children, link_abbreviations);
             out.push_str(&format!("{} {}\n\n", prefix, content));
             let tags = node.get_data_list("tags");
             if !tags.is_empty() {
@@ -111,7 +168,7 @@ fn render_node_org(out: &mut String, node: &Node, mdx_html: &str) {
             }
         }
         "paragraph" => {
-            let content = render_inlines_org(&node.children);
+            let content = render_inlines_org(&node.children, link_abbreviations);
             if !content.is_empty() {
                 if node.get_data_bool("hardLineBreak").unwrap_or(false) {
                     out.push_str(&format!("{}\\\\\n\n", content));
@@ -120,7 +177,7 @@ fn render_node_org(out: &mut String, node: &Node, mdx_html: &str) {
                 }
             }
         }
-        "list" => render_list_org(out, node, 0, mdx_html),
+        "list" => render_list_org(out, node, 0, mdx_html, link_abbreviations),
         "code" => {
             let val = node.value.as_deref().unwrap_or("");
             let has_lang = node.get_data_str("lang").is_some();
@@ -163,7 +220,7 @@ fn render_node_org(out: &mut String, node: &Node, mdx_html: &str) {
             out.push_str("#+begin_quote\n");
             if let Some(children) = &node.children {
                 for child in children {
-                    render_node_org(out, child, mdx_html);
+                    render_node_org(out, child, mdx_html, link_abbreviations);
                 }
             }
             out.push_str("#+end_quote\n\n");
@@ -196,7 +253,7 @@ fn render_node_org(out: &mut String, node: &Node, mdx_html: &str) {
     }
 }
 
-fn render_list_org(out: &mut String, node: &Node, indent: usize, mdx_html: &str) {
+fn render_list_org(out: &mut String, node: &Node, indent: usize, mdx_html: &str, link_abbreviations: &[(String, String)]) {
     let indent_str = "  ".repeat(indent);
     let ordered = node.get_data_bool("ordered").unwrap_or(false);
     if let Some(items) = &node.children {
@@ -209,10 +266,10 @@ fn render_list_org(out: &mut String, node: &Node, indent: usize, mdx_html: &str)
             let mut item_out = String::new();
             if let Some(children) = &item.children {
                 for child in children {
-                    render_node_org(&mut item_out, child, mdx_html);
+                    render_node_org(&mut item_out, child, mdx_html, link_abbreviations);
                 }
             }
-            let mut lines = item_lines(&item_out);
+            let lines = item_lines(&item_out);
             let first_line = lines.first().copied().unwrap_or("");
             out.push_str(first_line);
             out.push('\n');
@@ -233,7 +290,10 @@ fn item_lines(item_out: &str) -> Vec<&str> {
     lines
 }
 
-fn render_inlines_org(children: &Option<Vec<Node>>) -> String {
+fn render_inlines_org(
+    children: &Option<Vec<Node>>,
+    link_abbreviations: &[(String, String)],
+) -> String {
     let mut out = String::new();
     if let Some(inlines) = children {
         for inline in inlines {
@@ -243,19 +303,50 @@ fn render_inlines_org(children: &Option<Vec<Node>>) -> String {
                         out.push_str(val);
                     }
                 }
-                "strong" => out.push_str(&format!("*{}*", render_inlines_org(&inline.children))),
-                "emphasis" => out.push_str(&format!("/{}/", render_inlines_org(&inline.children))),
-                "underline" => out.push_str(&format!("_{}_", render_inlines_org(&inline.children))),
-                "delete" => out.push_str(&format!("+{}+", render_inlines_org(&inline.children))),
+                "strong" => out.push_str(&format!(
+                    "*{}*",
+                    render_inlines_org(&inline.children, link_abbreviations)
+                )),
+                "emphasis" => out.push_str(&format!(
+                    "/{}/",
+                    render_inlines_org(&inline.children, link_abbreviations)
+                )),
+                "underline" => out.push_str(&format!(
+                    "_{}_",
+                    render_inlines_org(&inline.children, link_abbreviations)
+                )),
+                "delete" => out.push_str(&format!(
+                    "+{}+",
+                    render_inlines_org(&inline.children, link_abbreviations)
+                )),
                 "inlineCode" => {
                     if let Some(val) = &inline.value {
                         out.push_str(&format!("~{}~", val));
                     }
                 }
                 "link" => {
-                    let text = render_inlines_org(&inline.children);
+                    let text = render_inlines_org(&inline.children, link_abbreviations);
                     let url = inline.get_data_str("url").unwrap_or("");
-                    out.push_str(&format!("[[{}][{}]]", url, text));
+                    if let Some((abbrev, _path)) = text.split_once(':') {
+                        if link_abbreviations.iter().any(|(a, _)| a == abbrev) {
+                            out.push_str(&format!("[[{}]]", text));
+                        } else {
+                            out.push_str(&format!("[[{}][{}]]", url, text));
+                        }
+                    } else {
+                        let mut matched = false;
+                        for (abbrev, base_url) in link_abbreviations.iter() {
+                            if url.starts_with(base_url) {
+                                let remainder = &url[base_url.len()..];
+                                out.push_str(&format!("[[{}:{}][{}]]", abbrev, remainder, text));
+                                matched = true;
+                                break;
+                            }
+                        }
+                        if !matched {
+                            out.push_str(&format!("[[{}][{}]]", url, text));
+                        }
+                    }
                 }
                 "image" => {
                     let alt = inline.get_data_str("alt").unwrap_or("");

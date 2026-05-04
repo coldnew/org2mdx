@@ -25,7 +25,7 @@ pub fn render_mdx(root: &Node) -> String {
                 render_frontmatter_value(&mut out, key, value);
             }
         }
-        out.push_str("---\n");
+        out.push_str("---\n\n");
     }
     if let Some(children) = &root.children {
         for child in children {

@@ -1,0 +1,30 @@
+#+TITLE: My Project Notes
+#+AUTHOR: Grok
+
+#+LINK: gh    https://github.com/
+#+LINK: gl    https://gitlab.com/
+#+LINK: jira  https://jira.example.com/browse/
+#+LINK: bug   https://bugs.example.com/
+#+LINK: doc   https://docs.example.com/
+#+LINK: pr    https://github.com/myorg/myproject/pull/
+#+LINK: issue https://github.com/myorg/myproject/issues/
+
+* Examples
+
+Here are some quick links:
+
+- My project repository: [[gh:myorg/myproject]]
+- Latest Pull Request: [[pr:245]]
+- Important issue: [[issue:142]]
+- GitLab repo: [[gl:mycompany/awesome-tool]]
+- JIRA ticket: [[jira:PROJ-834]]
+- Documentation: [[doc:installation-guide]]
+
+You can also mix them with descriptions:
+
+- [[gh:myorg/myproject][My Awesome Project]]
+- [[jira:PROJ-834][Fix login bug]]
+
+* Another Section
+
+Check this bug: [[bug:4872]]

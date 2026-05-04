@@ -1,14 +1,15 @@
 use crate::ast::Node;
 
+const ORDERED_FRONTMATTER_KEYS: [&str; 10] = [
+    "title", "date", "updated", "abbrlink", "author", "email", "tags", "language", "alias",
+    "org",
+];
+
 pub fn render_mdx(root: &Node) -> String {
     let mut out = String::new();
     if !root.data.is_empty() {
         out.push_str("---\n");
-        let ordered_keys = [
-            "title", "date", "updated", "abbrlink", "author", "email", "tags", "language",
-            "alias", "org",
-        ];
-        for key in &ordered_keys {
+        for key in &ORDERED_FRONTMATTER_KEYS {
             if let Some(value) = root.data.get(*key) {
                 render_frontmatter_value(&mut out, key, value);
             }
@@ -16,7 +17,7 @@ pub fn render_mdx(root: &Node) -> String {
         let mut remaining_keys: Vec<&String> = root
             .data
             .keys()
-            .filter(|key| !ordered_keys.contains(&key.as_str()))
+            .filter(|key| !ORDERED_FRONTMATTER_KEYS.contains(&key.as_str()))
             .collect();
         remaining_keys.sort();
         for key in remaining_keys {
@@ -105,24 +106,7 @@ fn render_node(out: &mut String, node: &Node) {
             let is_example = node
                 .get_data_str("block_type")
                 .map_or(false, |t| t == "example");
-            if is_example {
-                out.push_str("{/* #+BEGIN_EXAMPLE */}\n");
-            }
-            if let Some(lang) = node.get_data_str("lang") {
-                out.push_str(&format!("```{}\n", lang));
-            } else {
-                out.push_str("```\n");
-            }
-            if let Some(val) = &node.value {
-                out.push_str(val);
-                if !val.ends_with('\n') {
-                    out.push('\n');
-                }
-            }
-            out.push_str("```\n");
-            if is_example {
-                out.push_str("{/* #+END_EXAMPLE */}\n");
-            }
+            render_code_block(out, node, is_example);
         }
         "blockquote" => {
             if let Some(children) = &node.children {
@@ -179,11 +163,31 @@ fn render_list(out: &mut String, node: &Node, indent: usize) {
             let first_line = item_out.lines().next().unwrap_or("");
             out.push_str(first_line);
             out.push('\n');
-            let rest: Vec<&str> = item_out.lines().skip(1).collect();
-            for line in rest {
+            for line in item_out.lines().skip(1) {
                 out.push_str(&format!("{}{}\n", indent_str, line));
             }
         }
+    }
+}
+
+fn render_code_block(out: &mut String, node: &Node, is_example: bool) {
+    if is_example {
+        out.push_str("{/* #+BEGIN_EXAMPLE */}\n");
+    }
+    if let Some(lang) = node.get_data_str("lang") {
+        out.push_str(&format!("```{}\n", lang));
+    } else {
+        out.push_str("```\n");
+    }
+    if let Some(val) = &node.value {
+        out.push_str(val);
+        if !val.ends_with('\n') {
+            out.push('\n');
+        }
+    }
+    out.push_str("```\n");
+    if is_example {
+        out.push_str("{/* #+END_EXAMPLE */}\n");
     }
 }
 

@@ -1,14 +1,15 @@
 use crate::ast::Node;
 
+const ORDERED_FRONTMATTER_KEYS: [&str; 10] = [
+    "title", "date", "updated", "abbrlink", "author", "email", "options", "tags", "language",
+    "alias",
+];
+
 pub fn render_org(root: &Node) -> String {
     let mut out = String::new();
     let org_opts = root.data.get("org").and_then(|org| org.get("options"));
     if !root.data.is_empty() {
-        let ordered_keys = [
-            "title", "date", "updated", "abbrlink", "author", "email", "options", "tags",
-            "language", "alias",
-        ];
-        for key in ordered_keys.iter() {
+        for key in ORDERED_FRONTMATTER_KEYS.iter() {
             if *key == "options" {
                 if let Some(opts) = org_opts.and_then(|o| o.as_object()) {
                     let mut parts = Vec::new();
@@ -45,7 +46,7 @@ pub fn render_org(root: &Node) -> String {
             .keys()
             .filter(|k| {
                 let k_lower = k.to_lowercase();
-                !ordered_keys.contains(&k_lower.as_str())
+                !ORDERED_FRONTMATTER_KEYS.contains(&k_lower.as_str())
             })
             .collect();
         remaining_keys.sort();
@@ -211,10 +212,7 @@ fn render_list_org(out: &mut String, node: &Node, indent: usize, mdx_html: &str)
                     render_node_org(&mut item_out, child, mdx_html);
                 }
             }
-            let mut lines: Vec<&str> = item_out.lines().collect();
-            while lines.last().copied() == Some("") {
-                lines.pop();
-            }
+            let mut lines = item_lines(&item_out);
             let first_line = lines.first().copied().unwrap_or("");
             out.push_str(first_line);
             out.push('\n');
@@ -225,6 +223,14 @@ fn render_list_org(out: &mut String, node: &Node, indent: usize, mdx_html: &str)
         }
     }
     out.push('\n');
+}
+
+fn item_lines(item_out: &str) -> Vec<&str> {
+    let mut lines: Vec<&str> = item_out.lines().collect();
+    while lines.last().copied() == Some("") {
+        lines.pop();
+    }
+    lines
 }
 
 fn render_inlines_org(children: &Option<Vec<Node>>) -> String {

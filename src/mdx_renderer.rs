@@ -5,22 +5,22 @@ pub fn render_mdx(root: &Node) -> String {
     if !root.data.is_empty() {
         out.push_str("---\n");
         let ordered_keys = [
-            "title", "date", "updated", "abbrlink", "tags", "language", "alias",
+            "title", "date", "updated", "abbrlink", "author", "email", "tags", "language",
+            "alias", "org",
         ];
         for key in &ordered_keys {
             if let Some(value) = root.data.get(*key) {
                 render_frontmatter_value(&mut out, key, value);
             }
         }
-        for (key, value) in &root.data {
-            if !ordered_keys.contains(&key.as_str()) {
-                if key == "org" {
-                    if let Some(options) = value.get("options") {
-                        if options.get("mdx").is_none() {
-                            continue;
-                        }
-                    }
-                }
+        let mut remaining_keys: Vec<&String> = root
+            .data
+            .keys()
+            .filter(|key| !ordered_keys.contains(&key.as_str()))
+            .collect();
+        remaining_keys.sort();
+        for key in remaining_keys {
+            if let Some(value) = root.data.get(key) {
                 render_frontmatter_value(&mut out, key, value);
             }
         }
@@ -102,6 +102,12 @@ fn render_node(out: &mut String, node: &Node) {
         }
         "list" => render_list(out, node, 0),
         "code" => {
+            let is_example = node
+                .get_data_str("block_type")
+                .map_or(false, |t| t == "example");
+            if is_example {
+                out.push_str("{/* #+BEGIN_EXAMPLE */}\n");
+            }
             if let Some(lang) = node.get_data_str("lang") {
                 out.push_str(&format!("```{}\n", lang));
             } else {
@@ -114,6 +120,9 @@ fn render_node(out: &mut String, node: &Node) {
                 }
             }
             out.push_str("```\n");
+            if is_example {
+                out.push_str("{/* #+END_EXAMPLE */}\n");
+            }
         }
         "blockquote" => {
             if let Some(children) = &node.children {
@@ -176,7 +185,6 @@ fn render_list(out: &mut String, node: &Node, indent: usize) {
             }
         }
     }
-    out.push('\n');
 }
 
 fn render_inlines(children: &Option<Vec<Node>>) -> String {

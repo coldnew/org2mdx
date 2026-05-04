@@ -32,7 +32,37 @@ fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
 
     while i < lines.len() {
         let trimmed = lines[i].trim();
-        if trimmed.starts_with(begin_marker) && trimmed.ends_with("*/}") {
+        let trimmed_lower = trimmed.to_lowercase();
+
+        if trimmed_lower == "{/* #+begin_example */}" {
+            i += 1;
+            let mut content_lines = Vec::new();
+
+            while i < lines.len() {
+                if lines[i].trim().to_lowercase() == "{/* #+end_example */}" {
+                    i += 1;
+                    break;
+                }
+                content_lines.push(lines[i].to_string());
+                i += 1;
+            }
+
+            let content = if content_lines.len() >= 2
+                && content_lines[0].trim() == "```"
+                && content_lines.last().unwrap().trim() == "```"
+            {
+                content_lines[1..content_lines.len() - 1].join("\n")
+            } else {
+                content_lines.join("\n")
+            };
+
+            let idx = exports.len();
+            exports.push(ExportBlock {
+                export_type: "EXAMPLE".to_string(),
+                content,
+            });
+            result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
+        } else if trimmed.starts_with(begin_marker) && trimmed.ends_with("*/}") {
             let inner = trimmed
                 .strip_prefix(begin_marker)
                 .unwrap()
@@ -85,11 +115,19 @@ fn merge_exports(blocks: Vec<Node>, exports: &[ExportBlock]) -> Vec<Node> {
                             for (idx, exp) in exports.iter().enumerate() {
                                 let placeholder = format!("EXPORTBLOCKPLACEHOLDER{}", idx);
                                 if trimmed == placeholder {
-                                    result.push(
-                                        Node::new("export")
-                                            .with_value(&exp.content)
-                                            .data_str("lang", &exp.export_type),
-                                    );
+                                    if exp.export_type == "EXAMPLE" {
+                                        result.push(
+                                            Node::new("code")
+                                                .with_value(&exp.content)
+                                                .data_str("block_type", "example"),
+                                        );
+                                    } else {
+                                        result.push(
+                                            Node::new("export")
+                                                .with_value(&exp.content)
+                                                .data_str("lang", &exp.export_type),
+                                        );
+                                    }
                                     handled = true;
                                     break;
                                 }

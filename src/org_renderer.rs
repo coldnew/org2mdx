@@ -5,7 +5,8 @@ pub fn render_org(root: &Node) -> String {
     let org_opts = root.data.get("org").and_then(|org| org.get("options"));
     if !root.data.is_empty() {
         let ordered_keys = [
-            "title", "date", "updated", "abbrlink", "options", "tags", "language", "alias",
+            "title", "date", "updated", "abbrlink", "author", "email", "options", "tags",
+            "language", "alias",
         ];
         for key in ordered_keys.iter() {
             if *key == "options" {
@@ -39,12 +40,18 @@ pub fn render_org(root: &Node) -> String {
                 render_frontmatter_org(&mut out, key, value);
             }
         }
-        for key in root.data.keys() {
-            let k_lower = key.to_lowercase();
-            if !ordered_keys.contains(&k_lower.as_str()) {
-                let value = &root.data[key];
-                render_frontmatter_org(&mut out, key, value);
-            }
+        let mut remaining_keys: Vec<&String> = root
+            .data
+            .keys()
+            .filter(|k| {
+                let k_lower = k.to_lowercase();
+                !ordered_keys.contains(&k_lower.as_str())
+            })
+            .collect();
+        remaining_keys.sort();
+        for key in remaining_keys {
+            let value = &root.data[key];
+            render_frontmatter_org(&mut out, key, value);
         }
         out.push('\n');
     }
@@ -71,9 +78,18 @@ fn render_frontmatter_org(out: &mut String, key: &str, value: &serde_json::Value
     match value {
         serde_json::Value::String(s) => out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), s)),
         serde_json::Value::Array(list) => {
-            for item in list {
-                if let Some(s) = item.as_str() {
-                    out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), s));
+            if key.eq_ignore_ascii_case("tags") {
+                let joined = list
+                    .iter()
+                    .filter_map(|v| v.as_str())
+                    .collect::<Vec<&str>>()
+                    .join(", ");
+                out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), joined));
+            } else {
+                for item in list {
+                    if let Some(s) = item.as_str() {
+                        out.push_str(&format!("#+{}: {}\n", key.to_uppercase(), s));
+                    }
                 }
             }
         }
@@ -87,7 +103,7 @@ fn render_node_org(out: &mut String, node: &Node, mdx_html: &str) {
             let depth = node.get_data_num("depth").unwrap_or(1) as usize;
             let prefix = "*".repeat(depth);
             let content = render_inlines_org(&node.children);
-            out.push_str(&format!("{} {}\n", prefix, content));
+            out.push_str(&format!("{} {}\n\n", prefix, content));
             let tags = node.get_data_list("tags");
             if !tags.is_empty() {
                 out.push_str(&format!(" :{}:\n", tags.join(":")));
@@ -105,24 +121,41 @@ fn render_node_org(out: &mut String, node: &Node, mdx_html: &str) {
         }
         "list" => render_list_org(out, node, 0, mdx_html),
         "code" => {
-            if let Some(lang) = node.get_data_str("lang") {
-                out.push_str(&format!("#+BEGIN_SRC {}\n", lang));
-            } else {
-                out.push_str("#+BEGIN_EXAMPLE\n");
-            }
-            if let Some(val) = &node.value {
+            let val = node.value.as_deref().unwrap_or("");
+            let has_lang = node.get_data_str("lang").is_some();
+            let single_line = !val.contains('\n');
+            if !has_lang && single_line {
                 for line in val.lines() {
-                    out.push_str(&format!("  {}\n", line));
+                    out.push_str(&format!(": {}\n", line));
+                }
+                out.push('\n');
+            } else {
+                if has_lang {
+                    if let Some(lang) = node.get_data_str("lang") {
+                        out.push_str(&format!("#+BEGIN_SRC {}\n", lang));
+                    }
+                } else {
+                    out.push_str("#+BEGIN_EXAMPLE\n");
+                }
+                let is_example = node
+                    .get_data_str("block_type")
+                    .map_or(false, |t| t == "example");
+                for line in val.lines() {
+                    if is_example {
+                        out.push_str(&format!("{}\n", line));
+                    } else {
+                        out.push_str(&format!("  {}\n", line));
+                    }
                 }
                 if val.ends_with('\n') {
                     out.pop();
                     out.push('\n');
                 }
-            }
-            if node.get_data_str("lang").is_some() {
-                out.push_str("#+END_SRC\n\n");
-            } else {
-                out.push_str("#+END_EXAMPLE\n\n");
+                if node.get_data_str("lang").is_some() {
+                    out.push_str("#+END_SRC\n\n");
+                } else {
+                    out.push_str("#+END_EXAMPLE\n\n");
+                }
             }
         }
         "blockquote" => {
@@ -178,10 +211,14 @@ fn render_list_org(out: &mut String, node: &Node, indent: usize, mdx_html: &str)
                     render_node_org(&mut item_out, child, mdx_html);
                 }
             }
-            let first_line = item_out.lines().next().unwrap_or("");
+            let mut lines: Vec<&str> = item_out.lines().collect();
+            while lines.last().copied() == Some("") {
+                lines.pop();
+            }
+            let first_line = lines.first().copied().unwrap_or("");
             out.push_str(first_line);
             out.push('\n');
-            let rest: Vec<&str> = item_out.lines().skip(1).collect();
+            let rest = lines.into_iter().skip(1);
             for line in rest {
                 out.push_str(&format!("{}{}\n", indent_str, line));
             }

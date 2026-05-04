@@ -150,8 +150,8 @@ fn test_mdx_to_org_conversion() {
                 .unwrap_or_else(|e| panic!("Cannot read {}: {}", expected_org_path.display(), e));
             if actual_org != expected_org {
                 // Trim frontmatter if present and compare content
-                let (expected_fm, expected_rest) = split_frontmatter(&expected_org);
-                let (actual_fm, actual_rest) = split_frontmatter(&actual_org);
+                let (_expected_fm, expected_rest) = split_frontmatter(&expected_org);
+                let (_actual_fm, actual_rest) = split_frontmatter(&actual_org);
                 match (expected_rest, actual_rest) {
                     (Some(expected_rest), Some(actual_rest)) => {
                         if expected_rest != actual_rest {

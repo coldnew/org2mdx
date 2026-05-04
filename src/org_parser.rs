@@ -79,7 +79,7 @@ impl OrgParser {
                 .insert("author".to_string(), Value::String(v.to_string()));
         } else if let Some(v) = kw(trimmed, "EMAIL") {
             self.frontmatter
-                .insert("author_email".to_string(), Value::String(v.to_string()));
+                .insert("email".to_string(), Value::String(v.to_string()));
         } else if let Some(v) = kw(trimmed, "ALIAS") {
             let list = self
                 .frontmatter
@@ -282,7 +282,9 @@ impl OrgParser {
                     .map(|l| crate::util::strip_prefix_spaces(l, min_indent).to_string())
                     .collect();
                 let content = stripped.join("\n");
-                Ok(Node::new("code").with_value(&content))
+                Ok(Node::new("code")
+                    .with_value(&content)
+                    .data_str("block_type", "example"))
             }
             crate::block::BlockType::Quote => {
                 let mut quote_blocks = Vec::new();

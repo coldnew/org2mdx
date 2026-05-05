@@ -251,6 +251,22 @@ fn test_standard_mdx_to_org_fixtures() {
     }
 }
 
+#[test]
+fn test_mdx_example_single_line_renders_as_colon_block() {
+    let mdx = "{/* #+BEGIN_EXAMPLE */}\n```\nhello\n```\n{/* #+END_EXAMPLE */}\n";
+    let org = org2mdx::mdx_to_org::convert(mdx).expect("mdx->org conversion failed");
+
+    assert_eq!(org, ": hello\n");
+}
+
+#[test]
+fn test_mdx_example_multi_line_renders_as_example_block() {
+    let mdx = "{/* #+BEGIN_EXAMPLE */}\n```\nhello\nworld\n```\n{/* #+END_EXAMPLE */}\n";
+    let org = org2mdx::mdx_to_org::convert(mdx).expect("mdx->org conversion failed");
+
+    assert_eq!(org, "#+BEGIN_EXAMPLE\nhello\nworld\n#+END_EXAMPLE\n");
+}
+
 fn load_ast_fixtures() -> Vec<AstFixture> {
     let dir = Path::new("tests/ast");
     let entries =

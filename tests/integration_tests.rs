@@ -111,8 +111,8 @@ fn test_mdx_to_ast_fixtures() {
 fn test_standard_org_to_mdx_fixtures() {
     let org_dir = Path::new("tests/org");
     let mdx_dir = Path::new("tests/mdx");
-    let entries =
-        fs::read_dir(org_dir).unwrap_or_else(|e| panic!("cannot read {}: {}", org_dir.display(), e));
+    let entries = fs::read_dir(org_dir)
+        .unwrap_or_else(|e| panic!("cannot read {}: {}", org_dir.display(), e));
 
     let mut failures = Vec::new();
 
@@ -153,8 +153,8 @@ fn test_standard_org_to_mdx_fixtures() {
 fn test_standard_mdx_to_org_fixtures() {
     let org_dir = Path::new("tests/org");
     let mdx_dir = Path::new("tests/mdx");
-    let entries =
-        fs::read_dir(mdx_dir).unwrap_or_else(|e| panic!("cannot read {}: {}", mdx_dir.display(), e));
+    let entries = fs::read_dir(mdx_dir)
+        .unwrap_or_else(|e| panic!("cannot read {}: {}", mdx_dir.display(), e));
 
     let mut failures = Vec::new();
 
@@ -194,7 +194,8 @@ fn test_standard_mdx_to_org_fixtures() {
 
 fn load_ast_fixtures() -> Vec<AstFixture> {
     let dir = Path::new("tests/ast");
-    let entries = fs::read_dir(dir).unwrap_or_else(|e| panic!("cannot read {}: {}", dir.display(), e));
+    let entries =
+        fs::read_dir(dir).unwrap_or_else(|e| panic!("cannot read {}: {}", dir.display(), e));
 
     let mut fixtures = Vec::new();
     for entry in entries {
@@ -203,7 +204,11 @@ fn load_ast_fixtures() -> Vec<AstFixture> {
             continue;
         }
 
-        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
         let ast_path = dir.join(format!("{}.ast", stem));
         let mdx_path = dir.join(format!("{}.mdx", stem));
 
@@ -292,7 +297,13 @@ fn merge_adjacent_text_nodes(children: Vec<Value>) -> Vec<Value> {
         let text = child
             .get("type")
             .and_then(Value::as_str)
-            .and_then(|t| if t == "text" { child.get("value").and_then(Value::as_str) } else { None })
+            .and_then(|t| {
+                if t == "text" {
+                    child.get("value").and_then(Value::as_str)
+                } else {
+                    None
+                }
+            })
             .map(|s| s.to_string());
 
         if let Some(text_value) = text {
@@ -384,7 +395,9 @@ fn compare_org_with_link_tolerance(expected: &str, actual: &str) -> Result<(), S
         .collect::<Vec<_>>()
         .join("\n");
 
-    if expected_without_links == actual_without_links && expected_links_sorted == actual_links_sorted {
+    if expected_without_links == actual_without_links
+        && expected_links_sorted == actual_links_sorted
+    {
         return Ok(());
     }
 

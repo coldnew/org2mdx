@@ -1,8 +1,7 @@
 use crate::ast::Node;
 
 const ORDERED_FRONTMATTER_KEYS: [&str; 10] = [
-    "title", "date", "updated", "abbrlink", "author", "email", "tags", "language", "alias",
-    "org",
+    "title", "date", "updated", "abbrlink", "author", "email", "tags", "language", "alias", "org",
 ];
 
 pub fn render_mdx(root: &Node) -> String {
@@ -87,13 +86,13 @@ fn render_node(out: &mut String, node: &Node) {
     match node.r#type.as_str() {
         "heading" => {
             let depth: u64 = node
-        .data
-        .get("depth")
-        .and_then(|v| match v {
-            serde_json::Value::Number(ref n) => n.as_u64(),
-            _ => None,
-        })
-        .unwrap_or(1);
+                .data
+                .get("depth")
+                .and_then(|v| match v {
+                    serde_json::Value::Number(ref n) => n.as_u64(),
+                    _ => None,
+                })
+                .unwrap_or(1);
             let prefix = "#".repeat(depth as usize);
             let content = render_inlines(&node.children);
             out.push_str(&format!("{} {}\n", prefix, content));

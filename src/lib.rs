@@ -1,7 +1,7 @@
 pub mod ast;
+pub mod error;
 pub mod parser;
 pub mod renderer;
-pub mod error;
 pub mod util;
 
 pub use error::{Error, Result};

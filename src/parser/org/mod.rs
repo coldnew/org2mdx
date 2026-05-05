@@ -154,15 +154,15 @@ impl OrgParser {
         while self.pos < self.lines.len() {
             let line = self.lines[self.pos].clone();
             let trimmed = line.trim();
- if trimmed.is_empty() {
- if blocks.is_empty() {
- self.advance();
- continue;
- }
- blocks.push(Node::new("blankLine"));
- self.advance();
- continue;
- }
+            if trimmed.is_empty() {
+                if blocks.is_empty() {
+                    self.advance();
+                    continue;
+                }
+                blocks.push(Node::new("blankLine"));
+                self.advance();
+                continue;
+            }
             if let Some((depth, title, tags)) = crate::parser::org::heading::parse_heading(&line) {
                 if crate::parser::org::heading::should_skip_section(&tags) {
                     self.skip_section(depth);
@@ -199,7 +199,9 @@ impl OrgParser {
                 continue;
             }
             if let Some(v) = kw(trimmed, "HTML") {
-                blocks.push(Node::new("html").with_value(&crate::renderer::html_jsx::html_to_jsx(v.trim())));
+                blocks.push(
+                    Node::new("html").with_value(&crate::renderer::html_jsx::html_to_jsx(v.trim())),
+                );
                 self.advance();
                 continue;
             }
@@ -361,7 +363,9 @@ impl OrgParser {
             if crate::parser::org::heading::parse_heading(line).is_some() {
                 break;
             }
-            if crate::parser::org::list::is_unordered_item(line) || crate::parser::org::list::is_ordered_item(line) {
+            if crate::parser::org::list::is_unordered_item(line)
+                || crate::parser::org::list::is_ordered_item(line)
+            {
                 break;
             }
             let (text, is_lb) = if trimmed.ends_with("\\\\") {

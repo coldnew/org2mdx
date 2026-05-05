@@ -159,13 +159,13 @@ fn render_node_org(
     match node.r#type.as_str() {
         "heading" => {
             let depth: u64 = node
-        .data
-        .get("depth")
-        .and_then(|v| match v {
-            &serde_json::Value::Number(ref n) => n.as_u64(),
-            _ => None,
-        })
-        .unwrap_or(1);
+                .data
+                .get("depth")
+                .and_then(|v| match v {
+                    &serde_json::Value::Number(ref n) => n.as_u64(),
+                    _ => None,
+                })
+                .unwrap_or(1);
             let prefix = "*".repeat(depth as usize);
             let content = render_inlines_org(&node.children, link_abbreviations);
             out.push_str(&format!("{} {}\n\n", prefix, content));
@@ -262,7 +262,13 @@ fn render_node_org(
     }
 }
 
-fn render_list_org(out: &mut String, node: &Node, indent: usize, mdx_html: &str, link_abbreviations: &[(String, String)]) {
+fn render_list_org(
+    out: &mut String,
+    node: &Node,
+    indent: usize,
+    mdx_html: &str,
+    link_abbreviations: &[(String, String)],
+) {
     let indent_str = "  ".repeat(indent);
     let ordered = node.get_data_bool("ordered").unwrap_or(false);
     if let Some(items) = &node.children {

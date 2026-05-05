@@ -43,10 +43,7 @@ pub fn parse_block_begin(line: &str) -> BlockType {
             .to_string();
         BlockType::Export(export_type)
     } else {
-        let name = lower
-            .strip_prefix("#+begin_")
-            .unwrap_or(&lower)
-            .to_string();
+        let name = lower.strip_prefix("#+begin_").unwrap_or(&lower).to_string();
         BlockType::Unknown(name)
     }
 }

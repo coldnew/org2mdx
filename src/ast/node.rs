@@ -70,8 +70,10 @@ impl Node {
     }
 
     pub fn data_num(mut self, key: &str, value: u64) -> Self {
-        self.data
-            .insert(key.to_string(), Value::Number(serde_json::Number::from(value)));
+        self.data.insert(
+            key.to_string(),
+            Value::Number(serde_json::Number::from(value)),
+        );
         self
     }
 

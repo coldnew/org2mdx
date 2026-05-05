@@ -236,7 +236,10 @@ fn test_standard_mdx_to_org_fixtures() {
         }
 
         if let Err(e) = org2mdx::org_to_ast::parse(&actual_org) {
-            failures.push(format!("{} mdx->org output is not valid org parse: {}", stem, e));
+            failures.push(format!(
+                "{} mdx->org output is not valid org parse: {}",
+                stem, e
+            ));
             continue;
         }
 

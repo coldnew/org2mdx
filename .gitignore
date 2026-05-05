@@ -5,3 +5,4 @@ node_modules/
 *.dylib
 *.dll
 package-lock.json
+/.opencode/

@@ -1,78 +1,112 @@
 # AGENTS.md
 
+## Core Coding Principles
+
+### 1. Think Before Coding
+**Don’t assume. Don’t hide confusion. Present trade-offs.**
+
+Before implementing:
+- Clearly state your assumptions. If unsure, ask.
+- If multiple interpretations exist, present them — don’t silently choose one.
+- If there’s a simpler approach, say so. Raise objections when appropriate.
+- If something is unclear, stop. Point out the points of confusion. Ask.
+
+### 2. Prioritize Conciseness
+**Solve the problem with the least amount of code. Don’t over-speculate.**
+
+- Don’t add features beyond what was requested.
+- Don’t create abstractions for one-off code.
+- Don’t add unrequested “flexibility” or “configurability.”
+- Don’t add error handling for scenarios that can’t happen.
+- If you wrote 200 lines when 50 would suffice, rewrite it.
+
+**Self-check:** Would a senior engineer think this is overly complex? If yes, simplify.
+
+### 3. Precise Modifications
+**Only touch what must be touched. Only clean up the mess you created.**
+
+When editing existing code:
+- Don’t “improve” nearby code, comments, or formatting.
+- Don’t refactor things that aren’t broken.
+- Match the existing style, even if you prefer a different one.
+- If you notice unrelated dead code, mention it — don’t delete it.
+
+When your changes create orphan code:
+- Remove imports/variables/functions that became unused *because of your changes*.
+- Do not delete pre-existing dead code unless explicitly asked.
+
+**Acceptance criterion:** Every modified line should be directly traceable to the user’s request.
+
+### 4. Goal-Driven Execution
+**Define success criteria. Loop and verify until achieved.**
+
+Turn tasks into verifiable goals:
+- “Add validation” → “Write tests for invalid inputs, then make them pass”
+- “Fix bug” → “Write a test that reproduces the bug, then make it pass”
+- “Refactor X” → “Ensure tests pass before and after the refactor”
+
+For multi-step tasks, provide a short plan with verification steps.
+
+### Workflow Orchestration
+- **Planning Mode is Default** for any non-trivial task.
+- **Sub-Agent Strategy** — delegate research/exploration to keep main context clean.
+- **Self-Improvement Closed Loop** — after corrections, update `tasks/lessons.md`.
+- **Must Verify Before Completion** — never mark done until proven (tests, logs, comparison).
+- **Pursue Elegance (in Moderation)** — ask for more elegant solutions on non-trivial changes.
+- **Autonomous Bug Fixing** — fix directly, point to evidence, don’t shift burden.
+
+### Task Management
+1. **Plan First** → Write into `tasks/todo.md` as checkable items.
+2. **Confirm Plan** with user.
+3. **Track Progress** — check off items.
+4. **Explain Changes** — high-level summary per step.
+5. **Record Results** — append review section.
+6. **Capture Lessons** — update `tasks/lessons.md` after corrections.
+
+### Supplementary Core Principles
+- **No Laziness** — locate root causes, deliver senior-developer quality.
+- **Minimal Blast Radius** — only change what needs changing.
+
+**Signs these principles are working:** Fewer unnecessary changes in diffs, fewer rewrites, clarification questions *before* implementation.
+
+---
+
 ## Build & Test
 
 ```bash
-cargo build --release          # builds CLI binary + NAPI shared library
-cargo test                     # runs all Rust integration tests
-cargo test test_org_to_ast     # single test (use test function name)
+cargo build --release          # builds CLI + NAPI
+cargo test                     # all Rust tests
+cargo test test_org_to_ast     # single test
 ```
 
-No `npm test` — `package.json` references `test.js` but it doesn't exist.
-No CI configs, Makefile, or lint/format commands in this repo.
+No `npm test`. Format with `cargo fmt` before commits. Use Conventional Commits.
 
-## Commit Conventions
-
-- **Before committing**, run `cargo fmt` to format all Rust sources.
-- Use **Conventional Commits**: `feat:`, `fix:`, `test:`, `docs:`, `style:`, `refactor:`, `chore:`.
-
-## Coding Principles
-
-- **State assumptions** before implementing. If something is unclear, ask — don't guess.
-- **Minimal code**: solve with least code needed. No speculative features, no abstractions for one-off code.
-- **Surgical edits**: only change lines directly related to the task. Match existing style. Don't refactor unrelated code.
-- **Verify with tests**: `cargo test` before completion. Prove correctness, don't assume it.
-- **Define success criteria upfront** for multi-step tasks: what test must pass, what output must appear.
+## Coding Principles (Project-specific)
+- State assumptions.
+- Minimal, surgical edits.
+- Match style.
+- Verify with `cargo test`.
+- Define success criteria upfront.
 
 ## Architecture
-
 **Dual Rust + Node.js project:**
-- `Cargo.toml` — Rust CLI (`src/main.rs`) + library (`src/lib.rs`) + NAPI addon (`src/napi.rs`)
-- `package.json` / `index.js` — Node.js wrapper that `require()`s the native `.node` binary from `target/release/`
-- NAPI binary names per platform:
-  - Linux: `liborg2mdx_napi.so`
-  - macOS: `liborg2mdx_napi.dylib`
-  - Windows: `org2mdx_napi.dll`
+- Rust: CLI (`main.rs`), library (`lib.rs`), NAPI (`napi.rs`)
+- Node: `index.js` loads platform-specific `.node` binary
+- Key modules: `org_to_mdx`, `mdx_to_org`, AST (`unist`-style), parsers, renderers, utils
 
-**Module layout:**
-- `src/lib.rs` — public submodule entrypoints: `org_to_mdx`, `mdx_to_org`, `org_to_ast`, `mdx_to_ast`
-- `src/parser/org/` — Org parser (heading, block, list)
-- `src/parser/mdx/` — MDX parser
-- `src/renderer/` — mdx_renderer, org_renderer, html_jsx
-- `src/ast/` — unist-compliant AST (`Node`, `Position`, `Point`)
-- `src/util/` — date conversion, YAML helpers, URL escaping
+## Test Architecture
+Two fixture systems in `tests/integration_tests.rs`:
+1. Triplet fixtures (`tests/ast/`) — `.org`, `.ast` (JSON), `.mdx`
+2. Pairwise fixtures (`tests/org/`, `tests/mdx/`) — round-trip + semantic checks
 
-## Test Architecture (non-obvious)
-
-Tests live in `tests/integration_tests.rs`. Two fixture systems:
-
-1. **Triplet fixtures** (`tests/ast/`): Each stem has `.org`, `.ast` (JSON), `.mdx`
-   - `test_org_to_ast_fixtures` — org → AST matches fixture
-   - `test_ast_to_mdx_fixtures` — AST → MDX matches fixture
-   - `test_mdx_to_ast_fixtures` — MDX → AST matches fixture
-
-2. **Pairwise fixtures** (`tests/org/` + `tests/mdx/`):
-   - `test_standard_org_to_mdx_fixtures` — org→mdx, then round-trip AST comparison
-   - `test_standard_mdx_to_org_fixtures` — mdx→org→mdx, verifies semantic equivalence
-
-**AST normalization** before comparison strips:
-- `blankLine` nodes
-- Adjacent text nodes merged
-- `tags`, `date`, `updated` from `data` objects
-- Links autolinked if children match URL (removes children)
-- Links to image URLs with text matching URL → converted to `image` type
-- Adjacent lists of same ordered/unordered type merged
-- `category` normalized to single-element array
+**AST normalization** (important for comparisons) strips blank lines, merges text, normalizes tags/dates/links/images/lists, etc. See `.opencode/ast-test-plan.md`.
 
 ## Gotchas
-
-- **`Error::InvalidOrgFile`** is a catch-all also used for MDX errors — check context, don't rename.
-- **Date conversions** are hardcoded to UTC+8 in `src/util/mod.rs` (`org_date_to_iso`, `iso_to_org_date`).
-- **YAML frontmatter** is expected in MDX fixtures — `split_yaml_frontmatter` expects `---\n...\n---\n`.
-- Tests expect to run from repo root (fixture paths are `tests/ast/`, `tests/org/`, etc.).
-- The NAPI `convert` function only supports org→mdx — no mdx→org or AST output via Node.
+- `Error::InvalidOrgFile` is reused for MDX errors.
+- Dates hardcoded to UTC+8.
+- YAML frontmatter expects `---\n...\n---\n`.
+- NAPI `convert` currently only supports org→mdx.
 
 ## Docs Worth Knowing
-
-- `.opencode/ast-test-plan.md` — fixture authoring guide and normalization rationale
-- `README.md` — CLI usage and Library API (kept in sync)
+- `.opencode/ast-test-plan.md`
+- `README.md`

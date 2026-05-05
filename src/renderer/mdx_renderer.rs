@@ -176,10 +176,7 @@ fn render_list(out: &mut String, node: &Node, indent: usize) {
     }
 }
 
-fn render_code_block(out: &mut String, node: &Node, is_example: bool) {
-    if is_example {
-        out.push_str("{/* #+BEGIN_EXAMPLE */}\n");
-    }
+fn render_code_block(out: &mut String, node: &Node, _is_example: bool) {
     if let Some(lang) = node.get_data_str("lang") {
         out.push_str(&format!("```{}\n", lang));
     } else {
@@ -192,9 +189,6 @@ fn render_code_block(out: &mut String, node: &Node, is_example: bool) {
         }
     }
     out.push_str("```\n");
-    if is_example {
-        out.push_str("{/* #+END_EXAMPLE */}\n");
-    }
 }
 
 fn render_inlines(children: &Option<Vec<Node>>) -> String {

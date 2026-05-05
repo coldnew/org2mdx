@@ -1,0 +1,5 @@
+#+TITLE: Code Basic
+
+#+begin_src rust
+fn main() {}
+#+end_src

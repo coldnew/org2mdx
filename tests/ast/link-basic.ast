@@ -1,0 +1,25 @@
+{
+  "type": "root",
+  "children": [
+    {
+      "type": "paragraph",
+      "children": [
+        {
+          "type": "link",
+          "children": [
+            {
+              "type": "text",
+              "value": "Example"
+            }
+          ],
+          "data": {
+            "url": "https://example.com"
+          }
+        }
+      ]
+    }
+  ],
+  "data": {
+    "title": "Link Basic"
+  }
+}

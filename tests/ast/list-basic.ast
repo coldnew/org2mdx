@@ -1,0 +1,44 @@
+{
+  "type": "root",
+  "children": [
+    {
+      "type": "list",
+      "children": [
+        {
+          "type": "listItem",
+          "children": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "value": "One"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "listItem",
+          "children": [
+            {
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "value": "Two"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "data": {
+        "ordered": false
+      }
+    }
+  ],
+  "data": {
+    "title": "List Basic"
+  }
+}

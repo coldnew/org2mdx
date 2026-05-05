@@ -1,0 +1,3 @@
+#+TITLE: Link Basic
+
+[[https://example.com][Example]]

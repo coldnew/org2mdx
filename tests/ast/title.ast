@@ -1,0 +1,29 @@
+{
+  "type": "root",
+  "children": [
+    {
+      "type": "heading",
+      "children": [
+        {
+          "type": "text",
+          "value": "Hello"
+        }
+      ],
+      "data": {
+        "depth": 1
+      }
+    },
+    {
+      "type": "paragraph",
+      "children": [
+        {
+          "type": "text",
+          "value": "World"
+        }
+      ]
+    }
+  ],
+  "data": {
+    "title": "Title"
+  }
+}

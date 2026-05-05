@@ -1,0 +1,23 @@
+{
+  "type": "root",
+  "children": [
+    {
+      "type": "paragraph",
+      "children": [
+        {
+          "type": "text",
+          "value": "Body"
+        }
+      ]
+    }
+  ],
+  "data": {
+    "org": {
+      "options": {
+        "num": false,
+        "superscript": false
+      }
+    },
+    "title": "Frontmatter Options"
+  }
+}

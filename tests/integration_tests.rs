@@ -1,5 +1,6 @@
 use org2mdx::ast::Node;
 use serde_json::Value;
+use serde_yaml::Value as YamlValue;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -98,6 +99,91 @@ fn test_mdx_to_ast_fixtures() {
                 pretty_json(&expected_ast),
                 pretty_json(&actual_ast)
             ));
+        }
+    }
+
+    if !failures.is_empty() {
+        panic!("{}", failures.join("\n\n"));
+    }
+}
+
+#[test]
+fn test_standard_org_to_mdx_fixtures() {
+    let org_dir = Path::new("tests/org");
+    let mdx_dir = Path::new("tests/mdx");
+    let entries =
+        fs::read_dir(org_dir).unwrap_or_else(|e| panic!("cannot read {}: {}", org_dir.display(), e));
+
+    let mut failures = Vec::new();
+
+    for entry in entries {
+        let org_path = entry.expect("invalid directory entry").path();
+        if org_path.extension().and_then(|s| s.to_str()) != Some("org") {
+            continue;
+        }
+
+        let stem = org_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+        let mdx_path = mdx_dir.join(format!("{}.mdx", stem));
+        if !mdx_path.exists() {
+            failures.push(format!("missing expected fixture {}", mdx_path.display()));
+            continue;
+        }
+
+        let org = read_file(&org_path);
+        let expected_mdx = read_file(&mdx_path);
+        let actual_mdx = match org2mdx::org_to_mdx::convert(&org) {
+            Ok(v) => v,
+            Err(e) => {
+                failures.push(format!("{} org->mdx conversion failed: {}", stem, e));
+                continue;
+            }
+        };
+
+        if let Err(reason) = compare_mdx_with_frontmatter(&expected_mdx, &actual_mdx) {
+            failures.push(format!("{} org->mdx mismatch: {}", stem, reason));
+        }
+    }
+
+    if !failures.is_empty() {
+        panic!("{}", failures.join("\n\n"));
+    }
+}
+
+#[test]
+fn test_standard_mdx_to_org_fixtures() {
+    let org_dir = Path::new("tests/org");
+    let mdx_dir = Path::new("tests/mdx");
+    let entries =
+        fs::read_dir(mdx_dir).unwrap_or_else(|e| panic!("cannot read {}: {}", mdx_dir.display(), e));
+
+    let mut failures = Vec::new();
+
+    for entry in entries {
+        let mdx_path = entry.expect("invalid directory entry").path();
+        if mdx_path.extension().and_then(|s| s.to_str()) != Some("mdx") {
+            continue;
+        }
+
+        let stem = mdx_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+        let org_path = org_dir.join(format!("{}.org", stem));
+        if !org_path.exists() {
+            failures.push(format!("missing expected fixture {}", org_path.display()));
+            continue;
+        }
+
+        let mdx = read_file(&mdx_path);
+        let expected_org = read_file(&org_path);
+
+        let actual_org = match org2mdx::mdx_to_org::convert(&mdx) {
+            Ok(v) => v,
+            Err(e) => {
+                failures.push(format!("{} mdx->org conversion failed: {}", stem, e));
+                continue;
+            }
+        };
+
+        if let Err(reason) = compare_org_with_link_tolerance(&expected_org, &actual_org) {
+            failures.push(format!("{} mdx->org mismatch: {}", stem, reason));
         }
     }
 
@@ -243,4 +329,78 @@ fn json_of_node(node: &Node) -> Value {
 
 fn pretty_json(value: &Value) -> String {
     serde_json::to_string_pretty(value).expect("failed to format json")
+}
+
+fn compare_mdx_with_frontmatter(expected: &str, actual: &str) -> Result<(), String> {
+    let (expected_fm, expected_body) = split_yaml_frontmatter(expected)
+        .ok_or_else(|| "expected fixture has invalid frontmatter".to_string())?;
+    let (actual_fm, actual_body) = split_yaml_frontmatter(actual)
+        .ok_or_else(|| "actual output has invalid frontmatter".to_string())?;
+
+    if expected_fm != actual_fm {
+        return Err(format!(
+            "frontmatter differs\nexpected: {:#?}\nactual:   {:#?}",
+            expected_fm, actual_fm
+        ));
+    }
+
+    if expected_body != actual_body {
+        return Err(format!(
+            "body differs\nexpected:\n{}\nactual:\n{}",
+            expected_body, actual_body
+        ));
+    }
+
+    Ok(())
+}
+
+fn compare_org_with_link_tolerance(expected: &str, actual: &str) -> Result<(), String> {
+    if expected == actual {
+        return Ok(());
+    }
+
+    let expected_links: Vec<&str> = expected
+        .lines()
+        .filter(|line| line.trim_start().starts_with("#+LINK:"))
+        .collect();
+    let actual_links: Vec<&str> = actual
+        .lines()
+        .filter(|line| line.trim_start().starts_with("#+LINK:"))
+        .collect();
+
+    let mut expected_links_sorted = expected_links.clone();
+    expected_links_sorted.sort_unstable();
+    let mut actual_links_sorted = actual_links.clone();
+    actual_links_sorted.sort_unstable();
+
+    let expected_without_links = expected
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("#+LINK:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let actual_without_links = actual
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("#+LINK:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if expected_without_links == actual_without_links && expected_links_sorted == actual_links_sorted {
+        return Ok(());
+    }
+
+    Err(format!("expected:\n{}\nactual:\n{}", expected, actual))
+}
+
+fn split_yaml_frontmatter(input: &str) -> Option<(YamlValue, &str)> {
+    let trimmed = input.trim_start();
+    if !trimmed.starts_with("---\n") {
+        return None;
+    }
+
+    let after_start = &trimmed[4..];
+    let end = after_start.find("\n---\n")?;
+    let yaml_part = &after_start[..end];
+    let rest = &after_start[end + 5..];
+    let parsed = serde_yaml::from_str(yaml_part).ok()?;
+    Some((parsed, rest))
 }

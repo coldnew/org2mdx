@@ -1,6 +1,10 @@
+pub mod block;
+pub mod heading;
+pub mod list;
+
 use crate::ast::Node;
 use crate::error::Result;
-use crate::inline_parser::parse_inline;
+use crate::parser::inline::parse_inline;
 use crate::util::kw;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -159,8 +163,8 @@ impl OrgParser {
  self.advance();
  continue;
  }
-            if let Some((depth, title, tags)) = crate::heading::parse_heading(&line) {
-                if crate::heading::should_skip_section(&tags) {
+            if let Some((depth, title, tags)) = crate::parser::org::heading::parse_heading(&line) {
+                if crate::parser::org::heading::should_skip_section(&tags) {
                     self.skip_section(depth);
                     continue;
                 }
@@ -171,7 +175,7 @@ impl OrgParser {
                     .collect();
                 let heading = Node::new("heading")
                     .with_children(content)
-                    .data_num("depth", depth as u8)
+                    .data_num("depth", depth as u64)
                     .data_list_val("tags", tags_vec);
                 blocks.push(heading);
                 self.advance();
@@ -195,7 +199,7 @@ impl OrgParser {
                 continue;
             }
             if let Some(v) = kw(trimmed, "HTML") {
-                blocks.push(Node::new("html").with_value(&crate::html_jsx::html_to_jsx(v.trim())));
+                blocks.push(Node::new("html").with_value(&crate::renderer::html_jsx::html_to_jsx(v.trim())));
                 self.advance();
                 continue;
             }
@@ -208,12 +212,12 @@ impl OrgParser {
                 blocks.push(Node::new("code").with_value(&code));
                 continue;
             }
-            if crate::list::is_unordered_item(&line) {
+            if crate::parser::org::list::is_unordered_item(&line) {
                 let list = self.parse_unordered_list()?;
                 blocks.push(list);
                 continue;
             }
-            if crate::list::is_ordered_item(&line) {
+            if crate::parser::org::list::is_ordered_item(&line) {
                 let list = self.parse_ordered_list()?;
                 blocks.push(list);
                 continue;
@@ -231,7 +235,7 @@ impl OrgParser {
     fn skip_section(&mut self, heading_level: u32) {
         self.advance();
         while let Some(line) = self.peek() {
-            if let Some((lvl, _, _)) = crate::heading::parse_heading(line) {
+            if let Some((lvl, _, _)) = crate::parser::org::heading::parse_heading(line) {
                 if lvl <= heading_level {
                     break;
                 }
@@ -241,7 +245,7 @@ impl OrgParser {
     }
 
     fn parse_block(&mut self, start_line: &str) -> Result<Node> {
-        let block_type = crate::block::parse_block_begin(start_line);
+        let block_type = crate::parser::org::block::parse_block_begin(start_line);
         self.advance();
         let end_kw = block_type.end_keyword();
         let mut lines = Vec::new();
@@ -258,7 +262,7 @@ impl OrgParser {
             self.advance();
         }
         match block_type {
-            crate::block::BlockType::Src(lang) => {
+            crate::parser::org::block::BlockType::Src(lang) => {
                 let min_indent = lines
                     .iter()
                     .filter(|l| !l.trim().is_empty())
@@ -274,7 +278,7 @@ impl OrgParser {
                     .with_value(&content)
                     .data_str("lang", &lang))
             }
-            crate::block::BlockType::Example => {
+            crate::parser::org::block::BlockType::Example => {
                 let min_indent = lines
                     .iter()
                     .filter(|l| !l.trim().is_empty())
@@ -290,7 +294,7 @@ impl OrgParser {
                     .with_value(&content)
                     .data_str("block_type", "example"))
             }
-            crate::block::BlockType::Quote => {
+            crate::parser::org::block::BlockType::Quote => {
                 let mut quote_blocks = Vec::new();
                 for line in lines {
                     let trimmed = line.trim();
@@ -304,20 +308,20 @@ impl OrgParser {
                 }
                 Ok(Node::new("blockquote").with_children(quote_blocks))
             }
-            crate::block::BlockType::Center => {
+            crate::parser::org::block::BlockType::Center => {
                 let content = lines.join(" ");
                 Ok(
                     Node::new("paragraph")
                         .with_children(parse_inline(&content, &self.link_aliases)),
                 )
             }
-            crate::block::BlockType::Export(export_type) => {
+            crate::parser::org::block::BlockType::Export(export_type) => {
                 let content = lines.join("\n");
                 Ok(Node::new("export")
                     .with_value(&content)
                     .data_str("lang", &export_type))
             }
-            crate::block::BlockType::Unknown(_) => {
+            crate::parser::org::block::BlockType::Unknown(_) => {
                 let content = lines.join(" ");
                 Ok(
                     Node::new("paragraph")
@@ -354,10 +358,10 @@ impl OrgParser {
             if trimmed.starts_with("#+") || trimmed.starts_with("#-") {
                 break;
             }
-            if crate::heading::parse_heading(line).is_some() {
+            if crate::parser::org::heading::parse_heading(line).is_some() {
                 break;
             }
-            if crate::list::is_unordered_item(line) || crate::list::is_ordered_item(line) {
+            if crate::parser::org::list::is_unordered_item(line) || crate::parser::org::list::is_ordered_item(line) {
                 break;
             }
             let (text, is_lb) = if trimmed.ends_with("\\\\") {
@@ -387,10 +391,10 @@ impl OrgParser {
     fn parse_unordered_list(&mut self) -> Result<Node> {
         let mut items = Vec::new();
         while let Some(line) = self.peek() {
-            if !crate::list::is_unordered_item(line) {
+            if !crate::parser::org::list::is_unordered_item(line) {
                 break;
             }
-            let content_raw = crate::list::unordered_content(line);
+            let content_raw = crate::parser::org::list::unordered_content(line);
             let content_inline = parse_inline(content_raw.trim(), &self.link_aliases);
             let mut item_blocks = vec![Node::new("paragraph").with_children(content_inline)];
             self.advance();
@@ -410,10 +414,10 @@ impl OrgParser {
     fn parse_ordered_list(&mut self) -> Result<Node> {
         let mut items = Vec::new();
         while let Some(line) = self.peek() {
-            if !crate::list::is_ordered_item(line) {
+            if !crate::parser::org::list::is_ordered_item(line) {
                 break;
             }
-            let (_, content_raw) = crate::list::ordered_parts(line);
+            let (_, content_raw) = crate::parser::org::list::ordered_parts(line);
             let content_inline = parse_inline(content_raw.trim(), &self.link_aliases);
             let mut item_blocks = vec![Node::new("paragraph").with_children(content_inline)];
             self.advance();
@@ -441,16 +445,16 @@ impl OrgParser {
                 self.advance();
                 continue;
             }
-            if crate::list::is_unordered_item(trimmed) {
-                let content_raw = crate::list::unordered_content(trimmed);
+            if crate::parser::org::list::is_unordered_item(trimmed) {
+                let content_raw = crate::parser::org::list::unordered_content(trimmed);
                 let content_inline = parse_inline(content_raw.trim(), &self.link_aliases);
                 items.push(
                     Node::new("listItem")
                         .with_children(vec![Node::new("paragraph").with_children(content_inline)]),
                 );
                 self.advance();
-            } else if crate::list::is_ordered_item(trimmed) {
-                let (_, content_raw) = crate::list::ordered_parts(trimmed);
+            } else if crate::parser::org::list::is_ordered_item(trimmed) {
+                let (_, content_raw) = crate::parser::org::list::ordered_parts(trimmed);
                 let content_inline = parse_inline(content_raw.trim(), &self.link_aliases);
                 items.push(
                     Node::new("listItem")

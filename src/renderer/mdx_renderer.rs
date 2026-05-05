@@ -86,8 +86,15 @@ fn render_yaml_object(
 fn render_node(out: &mut String, node: &Node) {
     match node.r#type.as_str() {
         "heading" => {
-            let depth = node.get_data_num("depth").unwrap_or(1).min(6) as usize;
-            let prefix = "#".repeat(depth);
+            let depth: u64 = node
+        .data
+        .get("depth")
+        .and_then(|v| match v {
+            serde_json::Value::Number(ref n) => n.as_u64(),
+            _ => None,
+        })
+        .unwrap_or(1);
+            let prefix = "#".repeat(depth as usize);
             let content = render_inlines(&node.children);
             out.push_str(&format!("{} {}\n", prefix, content));
         }

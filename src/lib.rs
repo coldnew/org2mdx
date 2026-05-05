@@ -1,56 +1,45 @@
-mod ast;
-mod block;
-mod error;
-mod heading;
-mod html_jsx;
-mod inline_parser;
-mod list;
-mod mdx_parser;
-mod mdx_renderer;
-mod org_parser;
-mod org_renderer;
-mod util;
+pub mod ast;
+pub mod parser;
+pub mod renderer;
+pub mod error;
+pub mod util;
 
 pub use error::{Error, Result};
 
 pub mod org_to_mdx {
-    use crate::error::Result;
-    use crate::mdx_renderer::render_mdx;
-    use crate::org_parser::parse_org;
-
-    pub fn convert(input: &str) -> Result<String> {
-        let root = parse_org(input)?;
-        Ok(render_mdx(&root))
+    pub fn convert(input: &str) -> crate::error::Result<String> {
+        let ast = crate::parser::org::parse_org(input)?;
+        Ok(crate::renderer::mdx_renderer::render_mdx(&ast))
     }
 }
 
 pub mod mdx_to_org {
-    use crate::error::Result;
-    use crate::mdx_parser::parse_mdx;
-    use crate::org_renderer::render_org;
-
-    pub fn convert(input: &str) -> Result<String> {
-        let root = parse_mdx(input)?;
-        Ok(render_org(&root))
+    pub fn convert(input: &str) -> crate::error::Result<String> {
+        let ast = crate::parser::mdx::parse_mdx(input)?;
+        Ok(crate::renderer::org_renderer::render_org(&ast))
     }
 }
 
 pub mod org_to_ast {
-    use crate::ast::Node;
+    use super::ast::Node;
     use crate::error::Result;
-    use crate::org_parser::parse_org;
 
     pub fn parse(input: &str) -> Result<Node> {
-        parse_org(input)
+        crate::parser::org::parse_org(input)
     }
 }
 
 pub mod mdx_to_ast {
-    use crate::ast::Node;
+    use super::ast::Node;
     use crate::error::Result;
-    use crate::mdx_parser::parse_mdx;
 
     pub fn parse(input: &str) -> Result<Node> {
-        parse_mdx(input)
+        crate::parser::mdx::parse_mdx(input)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_stub_types() {}
 }

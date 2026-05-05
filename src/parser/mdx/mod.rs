@@ -259,7 +259,7 @@ fn convert_node(node: &MdastNode) -> Vec<Node> {
             let content = convert_inlines(&heading.children);
             vec![Node::new("heading")
                 .with_children(content)
-                .data_num("depth", heading.depth as u8)]
+                .data_num("depth", heading.depth as u64)]
         }
         MdastNode::Paragraph(para) => {
             let content = convert_inlines(&para.children);

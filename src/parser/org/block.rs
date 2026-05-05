@@ -23,8 +23,8 @@ impl BlockType {
 pub fn parse_block_begin(line: &str) -> BlockType {
     let lower = line.trim().to_lowercase();
     if let Some(rest) = lower.strip_prefix("#+begin_src") {
-        let lang = rest.trim().to_string();
-        let lang = match lang.as_str() {
+        let lang = rest.trim();
+        let lang = match lang {
             "c++" | "cpp" => "c".to_string(),
             other => other.to_string(),
         };
@@ -36,8 +36,7 @@ pub fn parse_block_begin(line: &str) -> BlockType {
     } else if lower.starts_with("#+begin_center") {
         BlockType::Center
     } else if lower.starts_with("#+begin_export") {
-        let export_type = line
-            .trim()
+        let export_type = lower
             .strip_prefix("#+begin_export")
             .unwrap_or("")
             .trim()
@@ -46,10 +45,7 @@ pub fn parse_block_begin(line: &str) -> BlockType {
     } else {
         let name = lower
             .strip_prefix("#+begin_")
-            .unwrap_or("unknown")
-            .split_whitespace()
-            .next()
-            .unwrap_or("unknown")
+            .unwrap_or(&lower)
             .to_string();
         BlockType::Unknown(name)
     }

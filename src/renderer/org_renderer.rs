@@ -158,13 +158,22 @@ fn render_node_org(
 ) {
     match node.r#type.as_str() {
         "heading" => {
-            let depth = node.get_data_num("depth").unwrap_or(1) as usize;
-            let prefix = "*".repeat(depth);
+            let depth: u64 = node
+        .data
+        .get("depth")
+        .and_then(|v| match v {
+            &serde_json::Value::Number(ref n) => n.as_u64(),
+            _ => None,
+        })
+        .unwrap_or(1);
+            let prefix = "*".repeat(depth as usize);
             let content = render_inlines_org(&node.children, link_abbreviations);
             out.push_str(&format!("{} {}\n\n", prefix, content));
-            let tags = node.get_data_list("tags");
-            if !tags.is_empty() {
-                out.push_str(&format!(" :{}:\n", tags.join(":")));
+            if let Some(tags) = node.get_data_list("tags") {
+                if !tags.is_empty() {
+                    let tag_strs: Vec<&str> = tags.iter().filter_map(|v| v.as_str()).collect();
+                    out.push_str(&format!(" :{}:\n", tag_strs.join(":")));
+                }
             }
         }
         "paragraph" => {
@@ -232,7 +241,7 @@ fn render_node_org(
                 if mdx_html == "html" {
                     out.push_str(&format!(
                         "#+HTML: {}\n\n",
-                        crate::html_jsx::jsx_to_html(val)
+                        crate::renderer::html_jsx::jsx_to_html(val)
                     ));
                 } else {
                     out.push_str(&format!("#+JSX: {}\n\n", val));

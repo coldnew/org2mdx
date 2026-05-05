@@ -1,6 +1,6 @@
 pub fn parse_heading(line: &str) -> Option<(u32, &str, Vec<&str>)> {
-    let t = line.trim_start();
-    let depth = t.chars().take_while(|&c| c == '*').count() as u32;
+    let t = line.trim();
+    let depth = t.chars().take_while(|c| *c == '*').count() as u32;
     if depth == 0 {
         return None;
     }
@@ -8,7 +8,7 @@ pub fn parse_heading(line: &str) -> Option<(u32, &str, Vec<&str>)> {
     if !rest.starts_with(' ') {
         return None;
     }
-    let text = rest.trim_start();
+    let text = rest[1..].trim();
     let (heading, tags) = split_tags(text);
     Some((depth, heading, tags))
 }
@@ -36,5 +36,5 @@ pub fn split_tags(text: &str) -> (&str, Vec<&str>) {
 }
 
 pub fn should_skip_section(tags: &[&str]) -> bool {
-    tags.iter().any(|t| *t == "noexport")
+    tags.contains(&"noexport") || tags.contains(&"skip")
 }

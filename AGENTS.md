@@ -16,6 +16,14 @@ No CI configs, Makefile, or lint/format commands in this repo.
 - **Before committing**, run `cargo fmt` to format all Rust sources.
 - Use **Conventional Commits**: `feat:`, `fix:`, `test:`, `docs:`, `style:`, `refactor:`, `chore:`.
 
+## Coding Principles
+
+- **State assumptions** before implementing. If something is unclear, ask — don't guess.
+- **Minimal code**: solve with least code needed. No speculative features, no abstractions for one-off code.
+- **Surgical edits**: only change lines directly related to the task. Match existing style. Don't refactor unrelated code.
+- **Verify with tests**: `cargo test` before completion. Prove correctness, don't assume it.
+- **Define success criteria upfront** for multi-step tasks: what test must pass, what output must appear.
+
 ## Architecture
 
 **Dual Rust + Node.js project:**

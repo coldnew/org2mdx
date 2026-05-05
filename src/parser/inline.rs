@@ -1,5 +1,5 @@
 use crate::ast::Node;
-use crate::util::{escape_url_parens, pct_encode};
+use crate::util::escape_url_parens;
 use std::collections::HashMap;
 
 pub fn parse_inline(text: &str, link_aliases: &HashMap<String, String>) -> Vec<Node> {
@@ -148,7 +148,7 @@ fn parse_link_or_image(
             || lower.ends_with(".gif")
             || lower.ends_with(".svg")
             || lower.ends_with(".webp");
-        let encoded = pct_encode(path);
+        let encoded = path.to_string();
         if is_image {
             let alt = desc.as_deref().unwrap_or(path).to_string();
             return Some((

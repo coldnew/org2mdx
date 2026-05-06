@@ -1,7 +1,7 @@
 use crate::ast::Node;
 use crate::error::Result;
 use crate::util::iso_to_org_date;
-use markdown::mdast::Node as MdastNode;
+use markdown::mdast::{AttributeContent, AttributeValue, Node as MdastNode};
 use markdown::to_mdast;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -39,6 +39,133 @@ fn is_jsx_line(line: &str) -> bool {
     is_jsx_anchor_line(trimmed)
         || trimmed.starts_with("import ")
         || trimmed.starts_with("export ")
+}
+
+/// Reconstruct a JSX element string from its parsed components (name, attributes, children).
+/// After the markdown parser breaks JSX into AST nodes, this rebuilds the original syntax
+/// so we can store it as an "html" node for round-trip fidelity.
+fn jsx_element_to_html_value(
+    name: &Option<String>,
+    attributes: &[AttributeContent],
+    children: &[MdastNode],
+) -> String {
+    let name_str = name.as_deref().unwrap_or("");
+    let is_fragment = name_str.is_empty();
+
+    // Self-closing: <Name /> (no children, no attributes, not a fragment)
+    if children.is_empty() && attributes.is_empty() && !is_fragment {
+        return format!("<{} />", name_str);
+    }
+
+    // Build attribute string
+    let mut attrs_str = String::new();
+    for attr in attributes {
+        match attr {
+            AttributeContent::Property(prop) => {
+                let val = match &prop.value {
+                    Some(AttributeValue::Literal(v)) => format!("=\"{}\"", v),
+                    Some(AttributeValue::Expression(expr)) => format!("={{{}}}", expr.value),
+                    None => String::new(),
+                };
+                attrs_str.push_str(&format!(" {}{}", prop.name, val));
+            }
+            AttributeContent::Expression(expr) => {
+                attrs_str.push_str(&format!(" {{{}}}", expr.value));
+            }
+        }
+    }
+
+    let open_tag = if is_fragment {
+        String::from("<>")
+    } else {
+        format!("<{}{}>", name_str, attrs_str)
+    };
+    let close_tag = if is_fragment {
+        String::from("</>")
+    } else {
+        format!("</{}>", name_str)
+    };
+
+    let children_str: String = children.iter().map(mdast_child_to_string).collect();
+    format!("{}{}{}", open_tag, children_str, close_tag)
+}
+
+/// Convert a single mdast child node to string for use inside reconstructed JSX.
+/// Handles text, inline formatting, nested JSX elements, and expressions.
+fn mdast_child_to_string(node: &MdastNode) -> String {
+    match node {
+        MdastNode::Text(text) => text.value.clone(),
+        MdastNode::Strong(strong) => {
+            let inner: String = strong.children.iter().map(mdast_child_to_string).collect();
+            format!("**{}**", inner)
+        }
+        MdastNode::Emphasis(em) => {
+            let inner: String = em.children.iter().map(mdast_child_to_string).collect();
+            format!("*{}*", inner)
+        }
+        MdastNode::Delete(del) => {
+            let inner: String = del.children.iter().map(mdast_child_to_string).collect();
+            format!("~~{}~~", inner)
+        }
+        MdastNode::InlineCode(code) => format!("`{}`", code.value),
+        MdastNode::Link(link) => {
+            let inner: String = link.children.iter().map(mdast_child_to_string).collect();
+            format!("[{}]({})", inner, link.url)
+        }
+        MdastNode::Html(html) => html.value.clone(),
+        MdastNode::MdxTextExpression(expr) => format!("{{{}}}", expr.value),
+        MdastNode::MdxJsxTextElement(el) => {
+            jsx_element_to_html_value(&el.name, &el.attributes, &el.children)
+        }
+        MdastNode::Break(_) => String::new(),
+        _ => String::new(),
+    }
+}
+
+/// Scan backward from `anchor` to find the start of a JSX block, including preceding
+/// `import`/`export` lines with optional blank lines between them. Stops at the first
+/// non-import/export line that isn't separated by only blank lines from the block.
+fn find_jsx_block_start(lines: &[&str], anchor: usize) -> usize {
+    let mut start = anchor;
+    while start > 0 {
+        let prev = lines[start - 1].trim();
+        if prev.starts_with("import ") || prev.starts_with("export ") {
+            start -= 1;
+        } else if prev.is_empty() {
+            // skip consecutive blank lines to the next import/export, or stop
+            let mut candidate = start - 1;
+            while candidate > 0 && lines[candidate].trim().is_empty() {
+                candidate -= 1;
+            }
+            if lines[candidate].trim().starts_with("import ")
+                || lines[candidate].trim().starts_with("export ")
+            {
+                start = candidate;
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    start
+}
+
+/// Scan forward from `anchor` to find the end of a JSX block, including subsequent
+/// JSX lines with optional blank lines between them.
+fn find_jsx_block_end(lines: &[&str], anchor: usize) -> usize {
+    let mut end = anchor;
+    while end + 1 < lines.len() {
+        let next = lines[end + 1].trim();
+        if is_jsx_line(next) {
+            end += 1;
+        } else if next.is_empty() && end + 2 < lines.len() && is_jsx_line(lines[end + 2].trim()) {
+            end += 2;
+        } else {
+            break;
+        }
+    }
+    end
 }
 
 fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
@@ -133,51 +260,10 @@ fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
             // JSX block detection — find block boundaries without annotations
 
             // Expand backward to include preceding import/export lines
-            let mut start = i;
-            while start > 0 {
-                let prev = lines[start - 1].trim();
-                if prev.starts_with("import ") || prev.starts_with("export ") {
-                    start -= 1;
-                } else if prev.is_empty() && start > 1 {
-                    let before_blank = lines[start - 2].trim();
-                    if before_blank.starts_with("import ") || before_blank.starts_with("export ") {
-                        start -= 2; // skip blank line + reach import
-                        while start > 0 {
-                            let more = lines[start - 1].trim();
-                            if more.starts_with("import ") || more.starts_with("export ") {
-                                start -= 1;
-                            } else if more.is_empty() && start > 1 {
-                                let bb = lines[start - 2].trim();
-                                if bb.starts_with("import ") || bb.starts_with("export ") {
-                                    start -= 2;
-                                } else {
-                                    break;
-                                }
-                            } else {
-                                break;
-                            }
-                        }
-                        break;
-                    } else {
-                        break;
-                    }
-                } else {
-                    break;
-                }
-            }
+            let mut start = find_jsx_block_start(&lines, i);
 
             // Expand forward: include subsequent JSX lines (allow blank lines between them)
-            let mut end = i;
-            while end + 1 < lines.len() {
-                let next = lines[end + 1].trim();
-                if is_jsx_line(next) {
-                    end += 1;
-                } else if next.is_empty() && end + 2 < lines.len() && is_jsx_line(lines[end + 2].trim()) {
-                    end += 2; // skip blank line + reach next JSX line
-                } else {
-                    break;
-                }
-            }
+            let mut end = find_jsx_block_end(&lines, i);
 
             // Trim leading/trailing blank lines from the block
             while start < end && lines[start].trim().is_empty() {
@@ -430,6 +516,10 @@ fn convert_node(node: &MdastNode) -> Vec<Node> {
         MdastNode::MdxFlowExpression(expr) => {
             vec![Node::new("html").with_value(&format!("{{{}}}", expr.value))]
         }
+        MdastNode::MdxJsxFlowElement(el) => {
+            let value = jsx_element_to_html_value(&el.name, &el.attributes, &el.children);
+            vec![Node::new("html").with_value(&value)]
+        }
         _ => vec![],
     }
 }
@@ -471,6 +561,10 @@ fn convert_inlines(nodes: &[MdastNode]) -> Vec<Node> {
             MdastNode::Html(html) => vec![Node::new("html").with_value(&html.value)],
             MdastNode::MdxTextExpression(expr) => {
                 vec![Node::new("html").with_value(&format!("{{{}}}", expr.value))]
+            }
+            MdastNode::MdxJsxTextElement(el) => {
+                let value = jsx_element_to_html_value(&el.name, &el.attributes, &el.children);
+                vec![Node::new("html").with_value(&value)]
             }
             _ => vec![],
         })

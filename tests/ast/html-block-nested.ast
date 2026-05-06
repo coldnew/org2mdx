@@ -2,11 +2,11 @@
   "children": [
     {
       "type": "html",
-      "value": "<div>Hello</div>"
+      "value": "<div><p>text</p></div>"
     }
   ],
   "data": {
-    "title": "HTML Block"
+    "title": "HTML Block Nested"
   },
   "type": "root"
 }

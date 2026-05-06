@@ -1,0 +1,15 @@
+{
+  "children": [
+    {
+      "data": {
+        "lang": "jsx"
+      },
+      "type": "export",
+      "value": "import { X } from 'y'\n<Foo>bar</Foo>"
+    }
+  ],
+  "data": {
+    "title": "Export JSX Import"
+  },
+  "type": "root"
+}

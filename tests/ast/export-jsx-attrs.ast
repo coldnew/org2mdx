@@ -1,0 +1,15 @@
+{
+  "children": [
+    {
+      "data": {
+        "lang": "jsx"
+      },
+      "type": "export",
+      "value": "<Button color=\"red\">Click</Button>"
+    }
+  ],
+  "data": {
+    "title": "Export JSX Attrs"
+  },
+  "type": "root"
+}

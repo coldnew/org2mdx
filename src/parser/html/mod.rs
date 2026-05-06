@@ -82,6 +82,19 @@ pub fn jsx_to_html(jsx: &str) -> String {
     serialize_nodes(&nodes, SerializeMode::Html)
 }
 
+/// Convert HTML to JSX if the value looks like raw HTML (starts with `<` followed
+/// by a lowercase letter). JSX components (uppercase tags), fragments (`<>`),
+/// expressions (`{...}`), and closing tags (`</...>`) pass through unchanged.
+pub fn ensure_jsx(value: &str) -> String {
+    let looks_like_html = value.starts_with('<')
+        && value.as_bytes().get(1).map_or(false, |b| b.is_ascii_lowercase());
+    if looks_like_html {
+        html_to_jsx(value)
+    } else {
+        value.to_string()
+    }
+}
+
 // ------------------------------------------------------------
 // Parser — HTML/JSX string → unified HtmlNode tree
 // ------------------------------------------------------------
@@ -519,4 +532,62 @@ fn camel_to_kebab(s: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_html_to_jsx_basic() {
+        assert_eq!(html_to_jsx("<div>hello</div>"), "<div>hello</div>");
+    }
+
+    #[test]
+    fn test_html_to_jsx_class_to_classname() {
+        assert_eq!(
+            html_to_jsx("<div class=\"foo\">text</div>"),
+            "<div className=\"foo\">text</div>"
+        );
+    }
+
+    #[test]
+    fn test_html_to_jsx_void_element() {
+        assert_eq!(html_to_jsx("<br>"), "<br />");
+        assert_eq!(html_to_jsx("<img src=\"x.png\">"), "<img src=\"x.png\" />");
+    }
+
+    #[test]
+    fn test_jsx_to_html_basic() {
+        assert_eq!(jsx_to_html("<div>hello</div>"), "<div>hello</div>");
+    }
+
+    #[test]
+    fn test_jsx_to_html_classname_to_class() {
+        assert_eq!(
+            jsx_to_html("<div className=\"foo\">text</div>"),
+            "<div class=\"foo\">text</div>"
+        );
+    }
+
+    #[test]
+    fn test_jsx_to_html_void_element() {
+        assert_eq!(jsx_to_html("<br />"), "<br>");
+    }
+
+    #[test]
+    fn test_roundtrip_html_jsx_html() {
+        let original = "<div class=\"foo\"><br><p>text</p></div>";
+        let jsx = html_to_jsx(original);
+        let back = jsx_to_html(&jsx);
+        assert_eq!(back, original);
+    }
+
+    #[test]
+    fn test_roundtrip_jsx_html_jsx() {
+        let original = "<div className=\"foo\"><br /><p>text</p></div>";
+        let html = jsx_to_html(original);
+        let back = html_to_jsx(&html);
+        assert_eq!(back, original);
+    }
 }

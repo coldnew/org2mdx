@@ -1,0 +1,6 @@
+#+TITLE: Export JSX Import
+
+#+begin_export jsx
+import { X } from 'y'
+<Foo>bar</Foo>
+#+end_export

@@ -130,7 +130,8 @@ fn render_node(out: &mut String, node: &Node) {
         "blankLine" => out.push('\n'),
         "html" => {
             if let Some(val) = &node.value {
-                out.push_str(val);
+                let jsx_val = crate::parser::html::ensure_jsx(val);
+                out.push_str(&jsx_val);
                 out.push('\n');
             }
         }
@@ -219,7 +220,8 @@ fn render_inlines(children: &Option<Vec<Node>>) -> String {
                 "break" => out.push_str("  \n"),
                 "html" => {
                     if let Some(val) = &inline.value {
-                        out.push_str(val);
+                        let jsx_val = crate::parser::html::ensure_jsx(val);
+                        out.push_str(&jsx_val);
                     }
                 }
                 _ => {}

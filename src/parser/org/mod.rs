@@ -194,7 +194,9 @@ impl OrgParser {
                 continue;
             }
             if let Some(v) = kw(trimmed, "JSX") {
-                blocks.push(Node::new("html").with_value(v.trim()));
+                blocks.push(
+                    Node::new("html").with_value(&crate::parser::html::ensure_jsx(v.trim())),
+                );
                 self.advance();
                 continue;
             }

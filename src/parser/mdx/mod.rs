@@ -194,7 +194,7 @@ fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
             });
 
             result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
-        } else if jsx::is_jsx_anchor_line(trimmed) {
+        } else if jsx::is_jsx_line(trimmed) {
             // JSX block detection — find block boundaries without annotations
 
             // Expand backward to include preceding import/export lines
@@ -450,7 +450,9 @@ fn convert_node(node: &MdastNode) -> Vec<Node> {
             vec![Node::new("blockquote").with_children(children)]
         }
         MdastNode::ThematicBreak(_) => vec![Node::new("thematicBreak")],
-        MdastNode::Html(html) => vec![Node::new("html").with_value(&html.value)],
+        MdastNode::Html(html) => {
+            vec![Node::new("html").with_value(&crate::parser::html::ensure_jsx(&html.value))]
+        }
         MdastNode::MdxFlowExpression(expr) => {
             vec![Node::new("html").with_value(&format!("{{{}}}", expr.value))]
         }
@@ -496,7 +498,9 @@ fn convert_inlines(nodes: &[MdastNode]) -> Vec<Node> {
                     .data_str("alt", &alt)]
             }
             MdastNode::Break(_) => vec![Node::new("break")],
-            MdastNode::Html(html) => vec![Node::new("html").with_value(&html.value)],
+            MdastNode::Html(html) => {
+                vec![Node::new("html").with_value(&crate::parser::html::ensure_jsx(&html.value))]
+            }
             MdastNode::MdxTextExpression(expr) => {
                 vec![Node::new("html").with_value(&format!("{{{}}}", expr.value))]
             }

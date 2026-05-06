@@ -65,3 +65,76 @@ pub fn find_jsx_block_end(lines: &[&str], anchor: usize) -> usize {
     }
     end
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_jsx_anchor_line() {
+        assert!(is_jsx_anchor_line("<Foo>"));
+        assert!(is_jsx_anchor_line("<Button color=\"red\">"));
+        assert!(is_jsx_anchor_line("<Callout>Hi</Callout>"));
+        assert!(!is_jsx_anchor_line("<div>"));
+        assert!(!is_jsx_anchor_line("<>"));
+        assert!(!is_jsx_anchor_line("3 < 5"));
+        assert!(!is_jsx_anchor_line("not jsx"));
+        assert!(!is_jsx_anchor_line(""));
+    }
+
+    #[test]
+    fn test_is_jsx_line() {
+        assert!(is_jsx_line("<Foo>"));
+        assert!(is_jsx_line("import { X } from 'y'"));
+        assert!(is_jsx_line("export default Foo"));
+        assert!(!is_jsx_line("<div>"));
+        assert!(!is_jsx_line("some text"));
+    }
+
+    #[test]
+    fn test_find_jsx_block_start_with_imports() {
+        let lines: Vec<&str> = vec!["import { X } from 'y'", "<Foo>bar</Foo>"];
+        // anchor at line 1 (<Foo>)
+        let start = find_jsx_block_start(&lines, 1);
+        assert_eq!(start, 0); // should include the import line
+    }
+
+    #[test]
+    fn test_find_jsx_block_start_no_import() {
+        let lines: Vec<&str> = vec!["some text", "<Foo>bar</Foo>"];
+        let start = find_jsx_block_start(&lines, 1);
+        assert_eq!(start, 1); // should stay at the anchor
+    }
+
+    #[test]
+    fn test_find_jsx_block_start_with_blank_line() {
+        let lines: Vec<&str> = vec!["import { X } from 'y'", "", "<Foo>bar</Foo>"];
+        // anchor at line 2
+        let start = find_jsx_block_start(&lines, 2);
+        assert_eq!(start, 0); // skip blank line to include import
+    }
+
+    #[test]
+    fn test_find_jsx_block_end_single_line() {
+        let lines: Vec<&str> = vec!["<Foo>bar</Foo>", "some text"];
+        let end = find_jsx_block_end(&lines, 0);
+        assert_eq!(end, 0); // only the anchor line
+    }
+
+    #[test]
+    fn test_find_jsx_block_end_multiple_lines() {
+        // Note: closing tags (</Foo>) are NOT detected as JSX anchor lines
+        // because is_jsx_anchor_line requires <Uppercase>, not </
+        let lines: Vec<&str> = vec!["<Foo>", "  <Bar />", "</Foo>", "some text"];
+        let end = find_jsx_block_end(&lines, 0);
+        assert_eq!(end, 1); // only <Foo> and <Bar /> (both <Uppercase>)
+        // </Foo> starts with '</' so it's not a JSX anchor
+    }
+
+    #[test]
+    fn test_find_jsx_block_end_with_blank_line() {
+        let lines: Vec<&str> = vec!["<Foo>bar</Foo>", "", "<Baz />", "some text"];
+        let end = find_jsx_block_end(&lines, 0);
+        assert_eq!(end, 2); // includes blank line and <Baz />
+    }
+}

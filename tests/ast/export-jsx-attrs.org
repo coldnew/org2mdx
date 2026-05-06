@@ -1,0 +1,5 @@
+#+TITLE: Export JSX Attrs
+
+#+begin_export jsx
+<Button color="red">Click</Button>
+#+end_export

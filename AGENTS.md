@@ -102,10 +102,10 @@ Two fixture systems in `tests/integration_tests.rs`:
 **AST normalization** (important for comparisons) strips blank lines, merges text, normalizes tags/dates/links/images/lists, etc. See `.opencode/ast-test-plan.md`.
 
 ## Gotchas
-- `Error::InvalidOrgFile` is reused for MDX errors.
+- `Error::InvalidInput` is used for both Org and MDX parse errors.
 - Dates hardcoded to UTC+8.
 - YAML frontmatter expects `---\n...\n---\n`.
-- NAPI `convert` currently only supports org→mdx.
+- NAPI supports all 4 conversion directions: org→mdx, mdx→org, org→ast, mdx→ast.
 
 ## Docs Worth Knowing
 - `.opencode/ast-test-plan.md`

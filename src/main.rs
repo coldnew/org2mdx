@@ -24,11 +24,11 @@ fn main() {
         ("mdx", "org") => org2mdx::mdx_to_org::convert(&input_content),
         ("org", "ast") => org2mdx::org_to_ast::parse(&input_content).and_then(|root| {
             serde_json::to_string_pretty(&root)
-                .map_err(|e| org2mdx::Error::InvalidOrgFile(e.to_string()))
+                .map_err(|e| org2mdx::Error::InvalidInput(e.to_string()))
         }),
         ("mdx", "ast") => org2mdx::mdx_to_ast::parse(&input_content).and_then(|root| {
             serde_json::to_string_pretty(&root)
-                .map_err(|e| org2mdx::Error::InvalidOrgFile(e.to_string()))
+                .map_err(|e| org2mdx::Error::InvalidInput(e.to_string()))
         }),
         (from, to) => {
             eprintln!("Unsupported conversion: {} -> {}", from, to);

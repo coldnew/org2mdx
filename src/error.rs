@@ -5,8 +5,8 @@ pub enum Error {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("Invalid Org file: {0}")]
-    InvalidOrgFile(String),
+    #[error("Parse error: {0}")]
+    InvalidInput(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

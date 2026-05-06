@@ -11,7 +11,7 @@ pub fn parse_mdx(input: &str) -> Result<Node> {
     let (frontmatter, body) = extract_frontmatter(input);
     let (processed_body, exports) = extract_export_blocks(body);
     let mdast = to_mdast(&processed_body, &markdown::ParseOptions::default())
-        .map_err(|e| crate::error::Error::InvalidOrgFile(e.to_string()))?;
+        .map_err(|e| crate::error::Error::InvalidInput(e.to_string()))?;
     let blocks = convert_node(&mdast);
     let blocks = merge_exports(blocks, &exports);
     Ok(Node::root(blocks).with_data_map(frontmatter))

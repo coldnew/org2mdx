@@ -51,10 +51,7 @@ pub fn parse_block_begin(line: &str) -> BlockType {
             }
             i += 1;
         }
-        BlockType::Src(SrcOptions {
-            lang,
-            exports,
-        })
+        BlockType::Src(SrcOptions { lang, exports })
     } else if lower.starts_with("#+begin_example") {
         BlockType::Example
     } else if lower.starts_with("#+begin_quote") {
@@ -62,10 +59,7 @@ pub fn parse_block_begin(line: &str) -> BlockType {
     } else if lower.starts_with("#+begin_center") {
         BlockType::Center
     } else if lower.starts_with("#+begin_export") {
-        let rest = lower
-            .strip_prefix("#+begin_export")
-            .unwrap_or("")
-            .trim();
+        let rest = lower.strip_prefix("#+begin_export").unwrap_or("").trim();
         let parts: Vec<&str> = rest.split_whitespace().collect();
         let export_type = parts.first().copied().unwrap_or("").to_string();
         let mut exports = None;

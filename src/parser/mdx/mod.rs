@@ -1,10 +1,10 @@
 use crate::ast::Node;
 use crate::error::Result;
+use crate::parser::jsx;
 use crate::util::iso_to_org_date;
 use markdown::mdast::{AttributeContent, AttributeValue, Node as MdastNode};
 use markdown::to_mdast;
 use serde_json::Value;
-use crate::parser::jsx;
 use std::collections::HashMap;
 
 pub fn parse_mdx(input: &str) -> Result<Node> {
@@ -22,7 +22,6 @@ struct ExportBlock {
     content: String,
     exports: Option<String>,
 }
-
 
 /// Reconstruct a JSX element string from its parsed components (name, attributes, children).
 /// After the markdown parser breaks JSX into AST nodes, this rebuilds the original syntax
@@ -104,7 +103,6 @@ fn mdast_child_to_string(node: &MdastNode) -> String {
         _ => String::new(),
     }
 }
-
 
 fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
     let begin_marker = "{/* #+begin_export";
@@ -258,7 +256,8 @@ fn merge_exports(blocks: Vec<Node>, exports: &[ExportBlock]) -> Vec<Node> {
                                                 .data_str("block_type", "example"),
                                         );
                                     } else if exp.exports.as_deref() == Some("none") {
-                                        result.push(Node::new("comment").with_value(":exports none"));
+                                        result
+                                            .push(Node::new("comment").with_value(":exports none"));
                                     } else {
                                         result.push(
                                             Node::new("export")

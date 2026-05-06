@@ -85,14 +85,65 @@ pub fn jsx_to_html(jsx: &str) -> String {
 /// Convert HTML to JSX if the value looks like raw HTML (starts with `<` followed
 /// by a lowercase letter). JSX components (uppercase tags), fragments (`<>`),
 /// expressions (`{...}`), and closing tags (`</...>`) pass through unchanged.
+///
+/// For opening tag fragments like `<b>` (without a matching closing tag in the
+/// same string), the first letter of the tag name is uppercased directly — this
+/// avoids `html_to_jsx` adding a spurious closing tag. Closing tags like `</b>`
+/// are also uppercased to `</B>`.
+/// Full HTML elements like `<div>Hello</div>` (with `</` in the value) are
+/// delegated to `html_to_jsx` for proper attribute conversion.
 pub fn ensure_jsx(value: &str) -> String {
-    let looks_like_html = value.starts_with('<')
-        && value.as_bytes().get(1).map_or(false, |b| b.is_ascii_lowercase());
-    if looks_like_html {
-        html_to_jsx(value)
-    } else {
-        value.to_string()
+    // ── 1. Closing tags: </lowercase…> → </Uppercase…> ──
+    if let Some(rest) = value.strip_prefix("</") {
+        if let Some(gt_idx) = rest.find('>') {
+            let tag = &rest[..gt_idx];
+            let suffix = &rest[gt_idx..];
+            if let Some(first_char) = tag.chars().next() {
+                if first_char.is_ascii_lowercase() {
+                    let mut uppercased = String::with_capacity(tag.len());
+                    uppercased.push(first_char.to_ascii_uppercase());
+                    uppercased.push_str(&tag[first_char.len_utf8()..]);
+                    return format!("</{}{}", uppercased, suffix);
+                }
+            }
+        }
+        return value.to_string();
     }
+
+    // ── 2. Opening tags ──
+    if let Some(c) = value
+        .strip_prefix('<')
+        .and_then(|r| r.as_bytes().first().copied())
+    {
+        if c.is_ascii_lowercase() {
+            // Full elements (contain a closing tag) → delegate to html_to_jsx
+            if value.contains("</") {
+                return html_to_jsx(value);
+            }
+
+            // Simple opening tag fragment — just uppercase the first letter
+            let rest = &value[1..]; // after '<'
+            let tag_end = rest
+                .find(|ch: char| ch.is_ascii_whitespace() || ch == '>' || ch == '/')
+                .unwrap_or(rest.len());
+            if tag_end == 0 {
+                return value.to_string();
+            }
+            let tag = &rest[..tag_end];
+            let after = &rest[tag_end..];
+
+            if let Some(first_char) = tag.chars().next() {
+                if first_char.is_ascii_lowercase() {
+                    let mut uppercased = String::with_capacity(tag.len());
+                    uppercased.push(first_char.to_ascii_uppercase());
+                    uppercased.push_str(&tag[first_char.len_utf8()..]);
+                    return format!("<{}{}", uppercased, after);
+                }
+            }
+        }
+    }
+
+    value.to_string()
 }
 
 // ------------------------------------------------------------
@@ -124,6 +175,13 @@ fn parse_single_node(input: &str, mode: ParseMode) -> Option<(HtmlNode, &str)> {
             }
             if input.starts_with('<') {
                 let next = *input.as_bytes().get(1)?;
+                if next == b'/' {
+                    // Closing tag — consume as text (e.g. </div>)
+                    if let Some(gt) = input.find('>') {
+                        let closing_tag = &input[..gt + 1];
+                        return Some((HtmlNode::Text(closing_tag.to_string()), &input[gt + 1..]));
+                    }
+                }
                 if next.is_ascii_alphabetic() {
                     if let Some(r) = parse_element(input, mode) {
                         return Some(r);
@@ -145,6 +203,13 @@ fn parse_single_node(input: &str, mode: ParseMode) -> Option<(HtmlNode, &str)> {
             }
             if input.starts_with('<') {
                 let next = *input.as_bytes().get(1)?;
+                if next == b'/' {
+                    // Closing tag — consume as text (e.g. </div>)
+                    if let Some(gt) = input.find('>') {
+                        let closing_tag = &input[..gt + 1];
+                        return Some((HtmlNode::Text(closing_tag.to_string()), &input[gt + 1..]));
+                    }
+                }
                 if next.is_ascii_alphabetic() {
                     if let Some(r) = parse_element(input, mode) {
                         return Some(r);

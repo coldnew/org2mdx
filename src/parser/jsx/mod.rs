@@ -16,9 +16,7 @@ pub fn is_jsx_anchor_line(line: &str) -> bool {
 /// `import `, or `export ` after trimming.
 pub fn is_jsx_line(line: &str) -> bool {
     let trimmed = line.trim();
-    is_jsx_anchor_line(trimmed)
-        || trimmed.starts_with("import ")
-        || trimmed.starts_with("export ")
+    is_jsx_anchor_line(trimmed) || trimmed.starts_with("import ") || trimmed.starts_with("export ")
 }
 /// Scan backward from `anchor` to find the start of a JSX block, including preceding
 /// `import`/`export` lines with optional blank lines between them. Stops at the first
@@ -128,7 +126,7 @@ mod tests {
         let lines: Vec<&str> = vec!["<Foo>", "  <Bar />", "</Foo>", "some text"];
         let end = find_jsx_block_end(&lines, 0);
         assert_eq!(end, 1); // only <Foo> and <Bar /> (both <Uppercase>)
-        // </Foo> starts with '</' so it's not a JSX anchor
+                            // </Foo> starts with '</' so it's not a JSX anchor
     }
 
     #[test]

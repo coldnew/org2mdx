@@ -137,11 +137,7 @@ fn render_inlines_simple(children: &Option<Vec<Node>>) -> String {
     out
 }
 
-fn render_node_org(
-    out: &mut String,
-    node: &Node,
-    link_abbreviations: &[(String, String)],
-) {
+fn render_node_org(out: &mut String, node: &Node, link_abbreviations: &[(String, String)]) {
     match node.r#type.as_str() {
         "heading" => {
             let depth: u64 = node

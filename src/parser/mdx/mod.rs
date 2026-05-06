@@ -22,18 +22,18 @@ struct ExportBlock {
     exports: Option<String>,
 }
 
-/// Returns true if the line looks like a JSX component tag: contains `<` followed by an uppercase letter.
+/// Returns true if the line starts with `<` followed by an uppercase letter — indicating a JSX
+/// component tag at the start of a line (block-level JSX, not inline within a paragraph).
 fn is_jsx_anchor_line(line: &str) -> bool {
-    if let Some(pos) = line.find('<') {
-        let after = &line[pos + 1..];
-        if let Some(c) = after.chars().next() {
-            return c.is_uppercase();
-        }
+    if let Some(rest) = line.strip_prefix('<') {
+        rest.chars().next().map_or(false, |c| c.is_uppercase())
+    } else {
+        false
     }
-    false
 }
 
-/// Returns true if the line is a JSX anchor, or starts with `import ` / `export `.
+/// Returns true if the line begins a JSX block: starts with a JSX component tag,
+/// `import `, or `export ` after trimming.
 fn is_jsx_line(line: &str) -> bool {
     let trimmed = line.trim();
     is_jsx_anchor_line(trimmed)
@@ -426,6 +426,10 @@ fn convert_node(node: &MdastNode) -> Vec<Node> {
             vec![Node::new("blockquote").with_children(children)]
         }
         MdastNode::ThematicBreak(_) => vec![Node::new("thematicBreak")],
+        MdastNode::Html(html) => vec![Node::new("html").with_value(&html.value)],
+        MdastNode::MdxFlowExpression(expr) => {
+            vec![Node::new("html").with_value(&format!("{{{}}}", expr.value))]
+        }
         _ => vec![],
     }
 }
@@ -464,6 +468,10 @@ fn convert_inlines(nodes: &[MdastNode]) -> Vec<Node> {
                     .data_str("alt", &alt)]
             }
             MdastNode::Break(_) => vec![Node::new("break")],
+            MdastNode::Html(html) => vec![Node::new("html").with_value(&html.value)],
+            MdastNode::MdxTextExpression(expr) => {
+                vec![Node::new("html").with_value(&format!("{{{}}}", expr.value))]
+            }
             _ => vec![],
         })
         .collect()

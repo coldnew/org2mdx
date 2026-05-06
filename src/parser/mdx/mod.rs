@@ -4,6 +4,7 @@ use crate::util::iso_to_org_date;
 use markdown::mdast::{AttributeContent, AttributeValue, Node as MdastNode};
 use markdown::to_mdast;
 use serde_json::Value;
+use crate::parser::jsx;
 use std::collections::HashMap;
 
 pub fn parse_mdx(input: &str) -> Result<Node> {
@@ -22,24 +23,6 @@ struct ExportBlock {
     exports: Option<String>,
 }
 
-/// Returns true if the line starts with `<` followed by an uppercase letter — indicating a JSX
-/// component tag at the start of a line (block-level JSX, not inline within a paragraph).
-fn is_jsx_anchor_line(line: &str) -> bool {
-    if let Some(rest) = line.strip_prefix('<') {
-        rest.chars().next().map_or(false, |c| c.is_uppercase())
-    } else {
-        false
-    }
-}
-
-/// Returns true if the line begins a JSX block: starts with a JSX component tag,
-/// `import `, or `export ` after trimming.
-fn is_jsx_line(line: &str) -> bool {
-    let trimmed = line.trim();
-    is_jsx_anchor_line(trimmed)
-        || trimmed.starts_with("import ")
-        || trimmed.starts_with("export ")
-}
 
 /// Reconstruct a JSX element string from its parsed components (name, attributes, children).
 /// After the markdown parser breaks JSX into AST nodes, this rebuilds the original syntax
@@ -122,51 +105,6 @@ fn mdast_child_to_string(node: &MdastNode) -> String {
     }
 }
 
-/// Scan backward from `anchor` to find the start of a JSX block, including preceding
-/// `import`/`export` lines with optional blank lines between them. Stops at the first
-/// non-import/export line that isn't separated by only blank lines from the block.
-fn find_jsx_block_start(lines: &[&str], anchor: usize) -> usize {
-    let mut start = anchor;
-    while start > 0 {
-        let prev = lines[start - 1].trim();
-        if prev.starts_with("import ") || prev.starts_with("export ") {
-            start -= 1;
-        } else if prev.is_empty() {
-            // skip consecutive blank lines to the next import/export, or stop
-            let mut candidate = start - 1;
-            while candidate > 0 && lines[candidate].trim().is_empty() {
-                candidate -= 1;
-            }
-            if lines[candidate].trim().starts_with("import ")
-                || lines[candidate].trim().starts_with("export ")
-            {
-                start = candidate;
-            } else {
-                break;
-            }
-        } else {
-            break;
-        }
-    }
-    start
-}
-
-/// Scan forward from `anchor` to find the end of a JSX block, including subsequent
-/// JSX lines with optional blank lines between them.
-fn find_jsx_block_end(lines: &[&str], anchor: usize) -> usize {
-    let mut end = anchor;
-    while end + 1 < lines.len() {
-        let next = lines[end + 1].trim();
-        if is_jsx_line(next) {
-            end += 1;
-        } else if next.is_empty() && end + 2 < lines.len() && is_jsx_line(lines[end + 2].trim()) {
-            end += 2;
-        } else {
-            break;
-        }
-    }
-    end
-}
 
 fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
     let begin_marker = "{/* #+begin_export";
@@ -256,14 +194,14 @@ fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
             });
 
             result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
-        } else if is_jsx_anchor_line(trimmed) {
+        } else if jsx::is_jsx_anchor_line(trimmed) {
             // JSX block detection — find block boundaries without annotations
 
             // Expand backward to include preceding import/export lines
-            let mut start = find_jsx_block_start(&lines, i);
+            let mut start = jsx::find_jsx_block_start(&lines, i);
 
             // Expand forward: include subsequent JSX lines (allow blank lines between them)
-            let mut end = find_jsx_block_end(&lines, i);
+            let mut end = jsx::find_jsx_block_end(&lines, i);
 
             // Trim leading/trailing blank lines from the block
             while start < end && lines[start].trim().is_empty() {

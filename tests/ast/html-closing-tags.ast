@@ -1,0 +1,12 @@
+{
+  "children": [
+    {
+      "type": "html",
+      "value": "<div>Hello</div>"
+    }
+  ],
+  "data": {
+    "title": "HTML Closing Tags"
+  },
+  "type": "root"
+}

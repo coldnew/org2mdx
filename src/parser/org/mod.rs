@@ -264,7 +264,10 @@ impl OrgParser {
             self.advance();
         }
         match block_type {
-            crate::parser::org::block::BlockType::Src(lang) => {
+            crate::parser::org::block::BlockType::Src(opts) => {
+                if opts.exports.as_deref() == Some("none") {
+                    return Ok(Node::new("comment").with_value(":exports none"));
+                }
                 let min_indent = lines
                     .iter()
                     .filter(|l| !l.trim().is_empty())
@@ -278,7 +281,7 @@ impl OrgParser {
                 let content = stripped.join("\n");
                 Ok(Node::new("code")
                     .with_value(&content)
-                    .data_str("lang", &lang))
+                    .data_str("lang", &opts.lang))
             }
             crate::parser::org::block::BlockType::Example => {
                 let min_indent = lines

@@ -11,3 +11,13 @@ import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
   <Accordion title="My Title">My Content</Accordion>
 </Accordions>
 #+end_export
+
+Followin will export with annotation
+
+#+begin_export jsx :exports none
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
+
+<Accordions type="single">
+  <Accordion title="My Title">My Content</Accordion>
+</Accordions>
+#+end_export

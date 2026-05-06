@@ -1,5 +1,10 @@
+pub struct SrcOptions {
+    pub lang: String,
+    pub exports: Option<String>,
+}
+
 pub enum BlockType {
-    Src(String),
+    Src(SrcOptions),
     Example,
     Quote,
     Center,
@@ -23,12 +28,28 @@ impl BlockType {
 pub fn parse_block_begin(line: &str) -> BlockType {
     let lower = line.trim().to_lowercase();
     if let Some(rest) = lower.strip_prefix("#+begin_src") {
-        let lang = rest.trim();
-        let lang = match lang {
+        let parts: Vec<&str> = rest.trim().split_whitespace().collect();
+        let lang = match parts.first().copied().unwrap_or("") {
             "c++" | "cpp" => "c".to_string(),
             other => other.to_string(),
         };
-        BlockType::Src(lang)
+        let mut exports = None;
+        let mut i = 1;
+        while i < parts.len() {
+            let token = parts[i];
+            if let Some(key) = token.strip_prefix(':') {
+                if key == "exports" && i + 1 < parts.len() {
+                    exports = Some(parts[i + 1].to_string());
+                    i += 2;
+                    continue;
+                }
+            }
+            i += 1;
+        }
+        BlockType::Src(SrcOptions {
+            lang,
+            exports,
+        })
     } else if lower.starts_with("#+begin_example") {
         BlockType::Example
     } else if lower.starts_with("#+begin_quote") {

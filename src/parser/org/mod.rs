@@ -320,11 +320,14 @@ impl OrgParser {
                         .with_children(parse_inline(&content, &self.link_aliases)),
                 )
             }
-            crate::parser::org::block::BlockType::Export(export_type) => {
+            crate::parser::org::block::BlockType::Export(opts) => {
+                if opts.exports.as_deref() == Some("none") {
+                    return Ok(Node::new("comment").with_value(":exports none"));
+                }
                 let content = lines.join("\n");
                 Ok(Node::new("export")
                     .with_value(&content)
-                    .data_str("lang", &export_type))
+                    .data_str("lang", &opts.export_type))
             }
             crate::parser::org::block::BlockType::Unknown(_) => {
                 let content = lines.join(" ");

@@ -12,7 +12,7 @@ import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
 </Accordions>
 #+end_export
 
-Followin will export with annotation
+Followin will not be exported:
 
 #+begin_export jsx :exports none
 import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';

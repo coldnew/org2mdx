@@ -3,12 +3,17 @@ pub struct SrcOptions {
     pub exports: Option<String>,
 }
 
+pub struct ExportOptions {
+    pub export_type: String,
+    pub exports: Option<String>,
+}
+
 pub enum BlockType {
     Src(SrcOptions),
     Example,
     Quote,
     Center,
-    Export(String),
+    Export(ExportOptions),
     Unknown(String),
 }
 
@@ -57,12 +62,29 @@ pub fn parse_block_begin(line: &str) -> BlockType {
     } else if lower.starts_with("#+begin_center") {
         BlockType::Center
     } else if lower.starts_with("#+begin_export") {
-        let export_type = lower
+        let rest = lower
             .strip_prefix("#+begin_export")
             .unwrap_or("")
-            .trim()
-            .to_string();
-        BlockType::Export(export_type)
+            .trim();
+        let parts: Vec<&str> = rest.split_whitespace().collect();
+        let export_type = parts.first().copied().unwrap_or("").to_string();
+        let mut exports = None;
+        let mut i = 1;
+        while i < parts.len() {
+            let token = parts[i];
+            if let Some(key) = token.strip_prefix(':') {
+                if key == "exports" && i + 1 < parts.len() {
+                    exports = Some(parts[i + 1].to_string());
+                    i += 2;
+                    continue;
+                }
+            }
+            i += 1;
+        }
+        BlockType::Export(ExportOptions {
+            export_type,
+            exports,
+        })
     } else {
         let name = lower.strip_prefix("#+begin_").unwrap_or(&lower).to_string();
         BlockType::Unknown(name)

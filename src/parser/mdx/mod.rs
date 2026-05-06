@@ -19,6 +19,7 @@ pub fn parse_mdx(input: &str) -> Result<Node> {
 struct ExportBlock {
     export_type: String,
     content: String,
+    exports: Option<String>,
 }
 
 fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
@@ -60,6 +61,7 @@ fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
             exports.push(ExportBlock {
                 export_type: "EXAMPLE".to_string(),
                 content,
+                exports: None,
             });
             result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
         } else if trimmed.starts_with(begin_marker) && trimmed.ends_with("*/}") {
@@ -69,7 +71,21 @@ fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
                 .strip_suffix("*/}")
                 .unwrap()
                 .trim();
-            let export_type = inner.to_string();
+            let parts: Vec<&str> = inner.split_whitespace().collect();
+            let export_type = parts.first().copied().unwrap_or("").to_string();
+            let mut export_param = None;
+            let mut j = 1;
+            while j < parts.len() {
+                let token = parts[j];
+                if let Some(key) = token.strip_prefix(':') {
+                    if key == "exports" && j + 1 < parts.len() {
+                        export_param = Some(parts[j + 1].to_string());
+                        j += 2;
+                        continue;
+                    }
+                }
+                j += 1;
+            }
 
             i += 1;
             let mut content_lines = Vec::new();
@@ -90,6 +106,7 @@ fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
             exports.push(ExportBlock {
                 export_type,
                 content,
+                exports: export_param,
             });
 
             result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
@@ -121,6 +138,8 @@ fn merge_exports(blocks: Vec<Node>, exports: &[ExportBlock]) -> Vec<Node> {
                                                 .with_value(&exp.content)
                                                 .data_str("block_type", "example"),
                                         );
+                                    } else if exp.exports.as_deref() == Some("none") {
+                                        result.push(Node::new("comment").with_value(":exports none"));
                                     } else {
                                         result.push(
                                             Node::new("export")

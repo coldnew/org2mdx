@@ -15,9 +15,6 @@ pub fn render_org(root: &Node) -> String {
                 if let Some(opts) = org_opts.and_then(|o| o.as_object()) {
                     let mut parts = Vec::new();
                     for (k, v) in opts {
-                        if k == "mdx" {
-                            continue;
-                        }
                         let org_k = if k == "superscript" { "^" } else { k.as_str() };
                         let v_str = match v {
                             serde_json::Value::Bool(false) => "nil",
@@ -29,9 +26,6 @@ pub fn render_org(root: &Node) -> String {
                     }
                     if !parts.is_empty() {
                         out.push_str(&format!("#+OPTIONS: {}\n", parts.join(" ")));
-                    }
-                    if let Some(mdx_val) = opts.get("mdx").and_then(|v| v.as_str()) {
-                        out.push_str(&format!("#+OPTIONS: mdx: {}\n", mdx_val));
                     }
                 }
                 continue;
@@ -62,16 +56,9 @@ pub fn render_org(root: &Node) -> String {
         }
         out.push('\n');
     }
-    let mdx_html = root
-        .data
-        .get("org")
-        .and_then(|org| org.get("options"))
-        .and_then(|opts| opts.get("mdx"))
-        .and_then(|mdx| mdx.as_str())
-        .unwrap_or("jsx");
     if let Some(children) = &root.children {
         for block in children {
-            render_node_org(&mut out, block, mdx_html, &link_abbreviations);
+            render_node_org(&mut out, block, &link_abbreviations);
         }
     }
     while out.ends_with('\n') {
@@ -153,7 +140,6 @@ fn render_inlines_simple(children: &Option<Vec<Node>>) -> String {
 fn render_node_org(
     out: &mut String,
     node: &Node,
-    mdx_html: &str,
     link_abbreviations: &[(String, String)],
 ) {
     match node.r#type.as_str() {
@@ -186,7 +172,7 @@ fn render_node_org(
                 }
             }
         }
-        "list" => render_list_org(out, node, 0, mdx_html, link_abbreviations),
+        "list" => render_list_org(out, node, 0, link_abbreviations),
         "code" => {
             let val = node.value.as_deref().unwrap_or("");
             let has_lang = node.get_data_str("lang").is_some();
@@ -229,7 +215,7 @@ fn render_node_org(
             out.push_str("#+begin_quote\n");
             if let Some(children) = &node.children {
                 for child in children {
-                    render_node_org(out, child, mdx_html, link_abbreviations);
+                    render_node_org(out, child, link_abbreviations);
                 }
             }
             out.push_str("#+end_quote\n\n");
@@ -238,14 +224,7 @@ fn render_node_org(
         "blankLine" => out.push('\n'),
         "html" => {
             if let Some(val) = &node.value {
-                if mdx_html == "html" {
-                    out.push_str(&format!(
-                        "#+HTML: {}\n\n",
-                        crate::renderer::html_jsx::jsx_to_html(val)
-                    ));
-                } else {
-                    out.push_str(&format!("#+JSX: {}\n\n", val));
-                }
+                out.push_str(&format!("#+JSX: {}\n\n", val));
             }
         }
         "export" => {
@@ -266,7 +245,6 @@ fn render_list_org(
     out: &mut String,
     node: &Node,
     indent: usize,
-    mdx_html: &str,
     link_abbreviations: &[(String, String)],
 ) {
     let indent_str = "  ".repeat(indent);
@@ -281,7 +259,7 @@ fn render_list_org(
             let mut item_out = String::new();
             if let Some(children) = &item.children {
                 for child in children {
-                    render_node_org(&mut item_out, child, mdx_html, link_abbreviations);
+                    render_node_org(&mut item_out, child, link_abbreviations);
                 }
             }
             let lines = item_lines(&item_out);

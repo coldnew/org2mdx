@@ -26,16 +26,9 @@ pub fn render_mdx(root: &Node) -> String {
         }
         out.push_str("---\n\n");
     }
-    let mdx_annotate = root
-        .data
-        .get("org")
-        .and_then(|v| v.get("options"))
-        .and_then(|v| v.get("mdx-annotate"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
     if let Some(children) = &root.children {
         for child in children {
-            render_node(&mut out, child, mdx_annotate);
+            render_node(&mut out, child);
         }
     }
     out
@@ -89,7 +82,7 @@ fn render_yaml_object(
     }
 }
 
-fn render_node(out: &mut String, node: &Node, mdx_annotate: bool) {
+fn render_node(out: &mut String, node: &Node) {
     match node.r#type.as_str() {
         "heading" => {
             let depth: u64 = node
@@ -114,7 +107,7 @@ fn render_node(out: &mut String, node: &Node, mdx_annotate: bool) {
                 }
             }
         }
-        "list" => render_list(out, node, 0, mdx_annotate),
+        "list" => render_list(out, node, 0),
         "code" => {
             let is_example = node
                 .get_data_str("block_type")
@@ -125,7 +118,7 @@ fn render_node(out: &mut String, node: &Node, mdx_annotate: bool) {
             if let Some(children) = &node.children {
                 for child in children {
                     let mut line = String::new();
-                    render_node(&mut line, child, mdx_annotate);
+                    render_node(&mut line, child);
                     for l in line.lines() {
                         out.push_str(&format!("> {}\n", l));
                     }
@@ -142,26 +135,16 @@ fn render_node(out: &mut String, node: &Node, mdx_annotate: bool) {
             }
         }
         "export" => {
-            if mdx_annotate {
-                if let Some(export_type) = node.get_data_str("lang") {
-                    out.push_str(&format!("{{/* #+begin_export {} */}}\n", export_type));
-                }
-            }
             if let Some(val) = &node.value {
                 out.push_str(val);
                 out.push('\n');
-            }
-            if mdx_annotate {
-                if let Some(export_type) = node.get_data_str("lang") {
-                    out.push_str(&format!("{{/* #+end_export {} */}}\n", export_type));
-                }
             }
         }
         _ => {}
     }
 }
 
-fn render_list(out: &mut String, node: &Node, indent: usize, mdx_annotate: bool) {
+fn render_list(out: &mut String, node: &Node, indent: usize) {
     let indent_str = "  ".repeat(indent);
     let ordered = node.get_data_bool("ordered").unwrap_or(false);
     if let Some(items) = &node.children {
@@ -174,7 +157,7 @@ fn render_list(out: &mut String, node: &Node, indent: usize, mdx_annotate: bool)
             let mut item_out = String::new();
             if let Some(children) = &item.children {
                 for child in children {
-                    render_node(&mut item_out, child, mdx_annotate);
+                    render_node(&mut item_out, child);
                 }
             }
             let first_line = item_out.lines().next().unwrap_or("");

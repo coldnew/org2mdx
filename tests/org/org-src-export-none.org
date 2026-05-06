@@ -1,5 +1,4 @@
 #+TITLE: org src export none test
-#+OPTIONS: mdx-annotate: nil
 
 #+BEGIN_SRC python :exports none
 # This code runs but is hidden in export

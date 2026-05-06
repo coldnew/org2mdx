@@ -1,6 +1,5 @@
 #+TITLE: 測試 HTML 轉換成 JSX
 #+OPTIONS: num:nil ^:nil
-#+OPTIONS: mdx: html
 
 #+HTML: <!-- more -->
 

@@ -22,6 +22,25 @@ struct ExportBlock {
     exports: Option<String>,
 }
 
+/// Returns true if the line looks like a JSX component tag: contains `<` followed by an uppercase letter.
+fn is_jsx_anchor_line(line: &str) -> bool {
+    if let Some(pos) = line.find('<') {
+        let after = &line[pos + 1..];
+        if let Some(c) = after.chars().next() {
+            return c.is_uppercase();
+        }
+    }
+    false
+}
+
+/// Returns true if the line is a JSX anchor, or starts with `import ` / `export `.
+fn is_jsx_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    is_jsx_anchor_line(trimmed)
+        || trimmed.starts_with("import ")
+        || trimmed.starts_with("export ")
+}
+
 fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
     let begin_marker = "{/* #+begin_export";
     let end_marker = "{/* #+end_export";
@@ -110,6 +129,82 @@ fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
             });
 
             result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
+        } else if is_jsx_anchor_line(trimmed) {
+            // JSX block detection — find block boundaries without annotations
+
+            // Expand backward to include preceding import/export lines
+            let mut start = i;
+            while start > 0 {
+                let prev = lines[start - 1].trim();
+                if prev.starts_with("import ") || prev.starts_with("export ") {
+                    start -= 1;
+                } else if prev.is_empty() && start > 1 {
+                    let before_blank = lines[start - 2].trim();
+                    if before_blank.starts_with("import ") || before_blank.starts_with("export ") {
+                        start -= 2; // skip blank line + reach import
+                        while start > 0 {
+                            let more = lines[start - 1].trim();
+                            if more.starts_with("import ") || more.starts_with("export ") {
+                                start -= 1;
+                            } else if more.is_empty() && start > 1 {
+                                let bb = lines[start - 2].trim();
+                                if bb.starts_with("import ") || bb.starts_with("export ") {
+                                    start -= 2;
+                                } else {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                        break;
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            // Expand forward: include subsequent JSX lines (allow blank lines between them)
+            let mut end = i;
+            while end + 1 < lines.len() {
+                let next = lines[end + 1].trim();
+                if is_jsx_line(next) {
+                    end += 1;
+                } else if next.is_empty() && end + 2 < lines.len() && is_jsx_line(lines[end + 2].trim()) {
+                    end += 2; // skip blank line + reach next JSX line
+                } else {
+                    break;
+                }
+            }
+
+            // Trim leading/trailing blank lines from the block
+            while start < end && lines[start].trim().is_empty() {
+                start += 1;
+            }
+            while end > start && lines[end].trim().is_empty() {
+                end -= 1;
+            }
+
+            let block_lines: Vec<&str> = lines[start..=end].to_vec();
+            let content = block_lines.join("\n");
+
+            if !content.trim().is_empty() {
+                let idx = exports.len();
+                exports.push(ExportBlock {
+                    export_type: "jsx".to_string(),
+                    content,
+                    exports: None,
+                });
+                result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
+            } else {
+                // Fallback: emit original lines unchanged
+                for j in i..=end {
+                    result.push(lines[j].to_string());
+                }
+            }
+            i = end + 1;
         } else {
             result.push(lines[i].to_string());
             i += 1;

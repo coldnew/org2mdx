@@ -200,7 +200,7 @@ impl OrgParser {
             }
             if let Some(v) = kw(trimmed, "HTML") {
                 blocks.push(
-                    Node::new("html").with_value(&crate::renderer::html_jsx::html_to_jsx(v.trim())),
+                    Node::new("html").with_value(&crate::parser::html::html_to_jsx(v.trim())),
                 );
                 self.advance();
                 continue;

@@ -271,7 +271,7 @@ impl OrgParser {
                 let min_indent = lines
                     .iter()
                     .filter(|l| !l.trim().is_empty())
-                    .map(|l| l.len() - l.trim_start_matches(|c: char| c == ' ' || c == '\t').len())
+                    .map(|l| l.len() - l.trim_start_matches([' ', '\t']).len())
                     .min()
                     .unwrap_or(0);
                 let stripped: Vec<String> = lines
@@ -287,7 +287,7 @@ impl OrgParser {
                 let min_indent = lines
                     .iter()
                     .filter(|l| !l.trim().is_empty())
-                    .map(|l| l.len() - l.trim_start_matches(|c: char| c == ' ' || c == '\t').len())
+                    .map(|l| l.len() - l.trim_start_matches([' ', '\t']).len())
                     .min()
                     .unwrap_or(0);
                 let stripped: Vec<String> = lines

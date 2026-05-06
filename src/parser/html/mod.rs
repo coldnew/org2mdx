@@ -392,18 +392,14 @@ fn parse_text(input: &str, mode: ParseMode) -> (HtmlNode, &str) {
     let bytes = input.as_bytes();
     let mut end = 0;
     while end < bytes.len() {
-        if bytes[end] == b'<' {
-            if end + 1 < bytes.len() {
-                let next = bytes[end + 1];
-                if next.is_ascii_alphabetic() || next == b'/' || next == b'!' || next == b'?' {
-                    break;
-                }
-            }
-        }
-        if mode == ParseMode::Jsx && bytes[end] == b'{' {
-            if input[end..].starts_with("{/*") {
+        if bytes[end] == b'<' && end + 1 < bytes.len() {
+            let next = bytes[end + 1];
+            if next.is_ascii_alphabetic() || next == b'/' || next == b'!' || next == b'?' {
                 break;
             }
+        }
+        if mode == ParseMode::Jsx && bytes[end] == b'{' && input[end..].starts_with("{/*") {
+            break;
         }
         end += 1;
     }

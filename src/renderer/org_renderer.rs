@@ -108,8 +108,7 @@ fn collect_abbreviations_recursive(
         if let Some((abbrev, path)) = text.split_once(':') {
             if !abbrev.is_empty() && !path.is_empty() && !seen.contains(abbrev) {
                 let url = node.get_data_str("url").unwrap_or("");
-                if url.ends_with(path) {
-                    let base_url = &url[..url.len() - path.len()];
+                if let Some(base_url) = url.strip_suffix(path) {
                     seen.insert(abbrev.to_string());
                     result.push((abbrev.to_string(), base_url.to_string()));
                 }
@@ -144,7 +143,7 @@ fn render_node_org(out: &mut String, node: &Node, link_abbreviations: &[(String,
                 .data
                 .get("depth")
                 .and_then(|v| match v {
-                    &serde_json::Value::Number(ref n) => n.as_u64(),
+                    serde_json::Value::Number(n) => n.as_u64(),
                     _ => None,
                 })
                 .unwrap_or(1);
@@ -186,9 +185,7 @@ fn render_node_org(out: &mut String, node: &Node, link_abbreviations: &[(String,
                 } else {
                     out.push_str("#+BEGIN_EXAMPLE\n");
                 }
-                let is_example = node
-                    .get_data_str("block_type")
-                    .map_or(false, |t| t == "example");
+                let is_example = node.get_data_str("block_type") == Some("example");
                 for line in val.lines() {
                     if is_example {
                         out.push_str(&format!("{}\n", line));

@@ -6,7 +6,7 @@
 /// component tag at the start of a line (block-level JSX, not inline within a paragraph).
 pub fn is_jsx_anchor_line(line: &str) -> bool {
     if let Some(rest) = line.strip_prefix('<') {
-        rest.chars().next().map_or(false, |c| c.is_uppercase())
+        rest.chars().next().is_some_and(|c| c.is_uppercase())
     } else {
         false
     }

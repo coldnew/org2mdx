@@ -109,9 +109,7 @@ fn render_node(out: &mut String, node: &Node) {
         }
         "list" => render_list(out, node, 0),
         "code" => {
-            let is_example = node
-                .get_data_str("block_type")
-                .map_or(false, |t| t == "example");
+            let is_example = node.get_data_str("block_type") == Some("example");
             render_code_block(out, node, is_example);
         }
         "blockquote" => {

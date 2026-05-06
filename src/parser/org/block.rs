@@ -33,7 +33,7 @@ impl BlockType {
 pub fn parse_block_begin(line: &str) -> BlockType {
     let lower = line.trim().to_lowercase();
     if let Some(rest) = lower.strip_prefix("#+begin_src") {
-        let parts: Vec<&str> = rest.trim().split_whitespace().collect();
+        let parts: Vec<&str> = rest.split_whitespace().collect();
         let lang = match parts.first().copied().unwrap_or("") {
             "c++" | "cpp" => "c".to_string(),
             other => other.to_string(),

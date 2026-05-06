@@ -158,11 +158,9 @@ pub fn iso_to_org_date(s: &str) -> Option<String> {
     let wd = {
         let t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
         let y_adj = if local_mo < 3 { local_y - 1 } else { local_y };
-        let d = (y_adj + y_adj / 4 - y_adj / 100
-            + y_adj / 400
-            + t[local_mo as usize - 1]
-            + local_d as i32)
-            % 7;
+        let d =
+            (y_adj + y_adj / 4 - y_adj / 100 + y_adj / 400 + t[local_mo as usize - 1] + local_d)
+                % 7;
         match d {
             0 => "Sun",
             1 => "Mon",

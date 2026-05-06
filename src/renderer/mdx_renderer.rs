@@ -217,6 +217,11 @@ fn render_inlines(children: &Option<Vec<Node>>) -> String {
                     out.push_str(&format!("[{}]({})", alt, url));
                 }
                 "break" => out.push_str("  \n"),
+                "html" => {
+                    if let Some(val) = &inline.value {
+                        out.push_str(val);
+                    }
+                }
                 _ => {}
             }
         }

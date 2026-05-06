@@ -347,6 +347,11 @@ fn render_inlines_org(
                     out.push_str(&format!("[[file:{}][{}]]", url, alt));
                 }
                 "break" => out.push_str("\\\\\n"),
+                "html" => {
+                    if let Some(val) = &inline.value {
+                        out.push_str(val);
+                    }
+                }
                 _ => {}
             }
         }

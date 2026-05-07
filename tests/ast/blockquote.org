@@ -1,0 +1,13 @@
+#+TITLE: Blockquote Test
+
+#+BEGIN_QUOTE
+This is a single-paragraph blockquote.
+#+END_QUOTE
+
+Regular paragraph after the quote.
+
+#+BEGIN_QUOTE
+A blockquote with *bold* and /italic/ text.
+#+END_QUOTE
+
+Final paragraph after all quotes.

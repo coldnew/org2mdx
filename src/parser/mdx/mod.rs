@@ -450,7 +450,7 @@ fn convert_node(node: &MdastNode) -> Vec<Node> {
         }
         MdastNode::ThematicBreak(_) => vec![Node::new("thematicBreak")],
         MdastNode::Html(html) => {
-            vec![Node::new("html").with_value(&crate::parser::html::ensure_jsx(&html.value))]
+            vec![Node::new("html").with_value(&crate::parser::html::html_to_jsx(&html.value))]
         }
         MdastNode::MdxFlowExpression(expr) => {
             vec![Node::new("html").with_value(&format!("{{{}}}", expr.value))]

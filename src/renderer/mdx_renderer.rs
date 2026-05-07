@@ -198,12 +198,22 @@ fn render_inlines(children: &Option<Vec<Node>>) -> String {
                 "underline" => {
                     out.push_str(&format!("<u>{}</u>", render_inlines(&inline.children)))
                 }
-                "underline" => {
-                    out.push_str(&format!("<u>{}</u>", render_inlines(&inline.children)))
-                }
                 "delete" => out.push_str(&format!("~~{}~~", render_inlines(&inline.children))),
                 "subscript" => {
                     out.push_str(&format!("<sub>{}</sub>", render_inlines(&inline.children)))
+                }
+                "superscript" => {
+                    out.push_str(&format!("<sup>{}</sup>", render_inlines(&inline.children)))
+                }
+                "inlineMath" => {
+                    if let Some(val) = &inline.value {
+                        out.push_str(&format!("${}$", val));
+                    }
+                }
+                "displayMath" => {
+                    if let Some(val) = &inline.value {
+                        out.push_str(&format!("$${}$$", val));
+                    }
                 }
                 "inlineCode" => {
                     if let Some(val) = &inline.value {

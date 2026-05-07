@@ -305,6 +305,20 @@ fn render_inlines_org(
                     "_{{{}}}",
                     render_inlines_org(&inline.children, link_abbreviations)
                 )),
+                "superscript" => out.push_str(&format!(
+                    "^{{{}}}",
+                    render_inlines_org(&inline.children, link_abbreviations)
+                )),
+                "inlineMath" => {
+                    if let Some(val) = &inline.value {
+                        out.push_str(&format!("${}$", val));
+                    }
+                }
+                "displayMath" => {
+                    if let Some(val) = &inline.value {
+                        out.push_str(&format!("$${}$$", val));
+                    }
+                }
                 "delete" => out.push_str(&format!(
                     "+{}+",
                     render_inlines_org(&inline.children, link_abbreviations)

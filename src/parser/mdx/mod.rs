@@ -488,6 +488,7 @@ fn group_inline_html(nodes: Vec<Node>) -> Vec<Node> {
                                         let semantic = match tag.to_lowercase().as_str() {
                                             "u" => "underline",
                                             "sub" => "subscript",
+                                            "sup" => "superscript",
                                             _ => &tag,
                                         };
                                         result.push(Node::new(semantic).with_children(children));
@@ -518,11 +519,87 @@ fn open_inline_tag(html: &str) -> Option<String> {
     }
     let inner = &s[1..s.len() - 1];
     let name = inner.split_whitespace().next()?;
-    if matches!(name.to_lowercase().as_str(), "u" | "sub") {
+    if matches!(name.to_lowercase().as_str(), "u" | "sub" | "sup") {
         Some(name.to_string())
     } else {
         None
     }
+}
+
+fn find_closing_dollar_in_text(chars: &[char], start: usize) -> Option<usize> {
+    let mut i = start;
+    while i < chars.len() {
+        if chars[i] == '$' {
+            if i + 1 < chars.len() && chars[i + 1] == '$' {
+                i += 2;
+                continue;
+            }
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+fn find_closing_double_dollar_in_text(chars: &[char], start: usize) -> Option<usize> {
+    let mut i = start;
+    while i + 1 < chars.len() {
+        if chars[i] == '$' && chars[i + 1] == '$' {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+fn split_math_from_text(text: &str) -> Vec<Node> {
+    let mut result = Vec::new();
+    let chars: Vec<char> = text.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+    let mut buf = String::new();
+    while i < len {
+        if chars[i] == '$' {
+            if i + 1 < len && chars[i + 1] == '$' {
+                if let Some(end) = find_closing_double_dollar_in_text(&chars, i + 2) {
+                    if !buf.is_empty() {
+                        result.push(Node::text(&buf));
+                        buf.clear();
+                    }
+                    let inner: String = chars[i + 2..end].iter().collect();
+                    result.push(Node::new("displayMath").with_value(&inner));
+                    i = end + 2;
+                    continue;
+                }
+            } else if i + 1 < len {
+                let next = chars[i + 1];
+                if next.is_alphabetic()
+                    || next == '\\'
+                    || next == '{'
+                    || next == '('
+                    || next == '_'
+                    || next == '^'
+                {
+                    if let Some(end) = find_closing_dollar_in_text(&chars, i + 1) {
+                        if !buf.is_empty() {
+                            result.push(Node::text(&buf));
+                            buf.clear();
+                        }
+                        let inner: String = chars[i + 1..end].iter().collect();
+                        result.push(Node::new("inlineMath").with_value(&inner));
+                        i = end + 1;
+                        continue;
+                    }
+                }
+            }
+        }
+        buf.push(chars[i]);
+        i += 1;
+    }
+    if !buf.is_empty() {
+        result.push(Node::text(&buf));
+    }
+    result
 }
 
 fn convert_inlines(nodes: &[MdastNode]) -> Vec<Node> {
@@ -573,5 +650,16 @@ fn convert_inlines(nodes: &[MdastNode]) -> Vec<Node> {
         })
         .collect();
     let grouped = group_inline_html(raw);
-    grouped
+    let with_math: Vec<Node> = grouped
+        .into_iter()
+        .flat_map(|node| {
+            if node.r#type == "text" {
+                if let Some(val) = &node.value {
+                    return split_math_from_text(val);
+                }
+            }
+            vec![node]
+        })
+        .collect();
+    with_math
 }

@@ -88,6 +88,38 @@ pub fn parse_inline(text: &str, link_aliases: &HashMap<String, String>) -> Vec<N
                 continue;
             }
         }
+        if chars[i] == '^' && i + 1 < chars.len() && chars[i + 1] == '{' {
+            if let Some((inner, n)) = parse_braced(&chars, i + 1) {
+                let inner_nodes = parse_inline(&inner, link_aliases);
+                result.push(Node::new("superscript").with_children(inner_nodes));
+                i += n + 1;
+                continue;
+            }
+        }
+        if chars[i] == '$' {
+            if i + 1 < chars.len() && chars[i + 1] == '$' {
+                if let Some((inner, n)) = find_closing_double_dollar(&chars, i + 2) {
+                    result.push(Node::new("displayMath").with_value(&inner));
+                    i += n + 2;
+                    continue;
+                }
+            } else if i + 1 < chars.len() {
+                let next = chars[i + 1];
+                if next.is_alphabetic()
+                    || next == '\\'
+                    || next == '{'
+                    || next == '('
+                    || next == '_'
+                    || next == '^'
+                {
+                    if let Some((inner, n)) = find_closing_dollar(&chars, i + 1) {
+                        result.push(Node::new("inlineMath").with_value(&inner));
+                        i += n + 1;
+                        continue;
+                    }
+                }
+            }
+        }
         result.push(Node::text(&chars[i].to_string()));
         i += 1;
     }
@@ -108,6 +140,34 @@ fn parse_braced(chars: &[char], start: usize) -> Option<(String, usize)> {
                 }
             }
             _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+fn find_closing_dollar(chars: &[char], start: usize) -> Option<(String, usize)> {
+    let mut i = start;
+    while i < chars.len() {
+        if chars[i] == '$' && (i == start || chars[i - 1] != '\\') {
+            if i + 1 < chars.len() && chars[i + 1] == '$' {
+                i += 2;
+                continue;
+            }
+            let inner: String = chars[start..i].iter().collect();
+            return Some((inner, i - start + 1));
+        }
+        i += 1;
+    }
+    None
+}
+
+fn find_closing_double_dollar(chars: &[char], start: usize) -> Option<(String, usize)> {
+    let mut i = start;
+    while i + 1 < chars.len() {
+        if chars[i] == '$' && chars[i + 1] == '$' && (i == start || chars[i - 1] != '\\') {
+            let inner: String = chars[start..i].iter().collect();
+            return Some((inner, i - start + 2));
         }
         i += 1;
     }

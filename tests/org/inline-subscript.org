@@ -1,0 +1,5 @@
+#+TITLE: Inline Subscript Test
+
+Water is H_{2}O.
+
+Complex: C_{6}H_{12}O_{6}.

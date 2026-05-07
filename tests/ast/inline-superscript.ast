@@ -1,0 +1,20 @@
+{
+  "type": "root",
+  "children": [
+    {
+      "type": "paragraph",
+      "children": [
+        {"type": "text", "value": "Einstein says E equals mc"},
+        {"type": "superscript", "children": [{"type": "text", "value": "2"}]},
+        {"type": "text", "value": " and x"},
+        {"type": "superscript", "children": [{"type": "text", "value": "n"}]},
+        {"type": "text", "value": " + y"},
+        {"type": "superscript", "children": [{"type": "text", "value": "n"}]},
+        {"type": "text", "value": " equals z"},
+        {"type": "superscript", "children": [{"type": "text", "value": "n"}]},
+        {"type": "text", "value": "."}
+      ]
+    }
+  ],
+  "data": {"title": "AST Superscript Test"}
+}

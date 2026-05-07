@@ -1,0 +1,5 @@
+#+TITLE: Inline Superscript Test
+
+Einstein's equation is E=mc^{2}.
+
+Also x^{n} + y^{n} = z^{n}.

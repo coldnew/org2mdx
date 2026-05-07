@@ -1,0 +1,9 @@
+#+TITLE: Inline Math Test
+
+Inline math: $E=mc^2$ is famous.
+
+Display math:
+
+$$\int_0^\infty e^{-x} dx = 1$$
+
+And another inline $a^2 + b^2 = c^2$ here.

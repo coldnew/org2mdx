@@ -1,0 +1,16 @@
+{
+  "type": "root",
+  "children": [
+    {
+      "type": "paragraph",
+      "children": [
+        {"type": "text", "value": "This has "},
+        {"type": "underline", "children": [{"type": "text", "value": "underlined"}]},
+        {"type": "text", "value": " text and "},
+        {"type": "underline", "children": [{"type": "text", "value": "more underlined"}]},
+        {"type": "text", "value": " words."}
+      ]
+    }
+  ],
+  "data": {"title": "AST Underline Test"}
+}

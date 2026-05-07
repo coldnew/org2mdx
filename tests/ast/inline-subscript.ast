@@ -1,0 +1,20 @@
+{
+  "type": "root",
+  "children": [
+    {
+      "type": "paragraph",
+      "children": [
+        {"type": "text", "value": "Water is H"},
+        {"type": "subscript", "children": [{"type": "text", "value": "2"}]},
+        {"type": "text", "value": "O and glucose is C"},
+        {"type": "subscript", "children": [{"type": "text", "value": "6"}]},
+        {"type": "text", "value": "H"},
+        {"type": "subscript", "children": [{"type": "text", "value": "12"}]},
+        {"type": "text", "value": "O"},
+        {"type": "subscript", "children": [{"type": "text", "value": "6"}]},
+        {"type": "text", "value": "."}
+      ]
+    }
+  ],
+  "data": {"title": "AST Subscript Test"}
+}

@@ -301,6 +301,10 @@ fn render_inlines_org(
                     "_{}_",
                     render_inlines_org(&inline.children, link_abbreviations)
                 )),
+                "subscript" => out.push_str(&format!(
+                    "_{{{}}}",
+                    render_inlines_org(&inline.children, link_abbreviations)
+                )),
                 "delete" => out.push_str(&format!(
                     "+{}+",
                     render_inlines_org(&inline.children, link_abbreviations)

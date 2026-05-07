@@ -72,10 +72,46 @@ pub fn parse_inline(text: &str, link_aliases: &HashMap<String, String>) -> Vec<N
                 continue;
             }
         }
+        if chars[i] == '_' {
+            if i + 1 < chars.len() && chars[i + 1] == '{' {
+                if let Some((inner, n)) = parse_braced(&chars, i + 1) {
+                    let inner_nodes = parse_inline(&inner, link_aliases);
+                    result.push(Node::new("subscript").with_children(inner_nodes));
+                    i += n + 1;
+                    continue;
+                }
+            }
+            if let Some((inner, n)) = markup_at(&chars, i, '_') {
+                let inner_nodes = parse_inline(&inner, link_aliases);
+                result.push(Node::new("underline").with_children(inner_nodes));
+                i += n;
+                continue;
+            }
+        }
         result.push(Node::text(&chars[i].to_string()));
         i += 1;
     }
     result
+}
+
+fn parse_braced(chars: &[char], start: usize) -> Option<(String, usize)> {
+    let mut depth = 1;
+    let mut i = start + 1;
+    while i < chars.len() {
+        match chars[i] {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    let inner: String = chars[start + 1..i].iter().collect();
+                    return Some((inner, i - start + 1));
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
 }
 
 fn markup_at(chars: &[char], start: usize, delim: char) -> Option<(String, usize)> {

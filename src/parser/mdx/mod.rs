@@ -463,8 +463,70 @@ fn convert_node(node: &MdastNode) -> Vec<Node> {
     }
 }
 
+fn group_inline_html(nodes: Vec<Node>) -> Vec<Node> {
+    let mut result = Vec::new();
+    let mut i = 0;
+    while i < nodes.len() {
+        if nodes[i].r#type == "html" {
+            if let Some(open_val) = &nodes[i].value {
+                if let Some(tag) = open_inline_tag(open_val) {
+                    let close_tag = format!("</{}>", tag);
+                    let mut j = i + 1;
+                    let mut depth = 1;
+                    while j < nodes.len() {
+                        if nodes[j].r#type == "html" {
+                            if let Some(child_val) = &nodes[j].value {
+                                if let Some(child_open) = open_inline_tag(child_val) {
+                                    if child_open.eq_ignore_ascii_case(&tag) {
+                                        depth += 1;
+                                    }
+                                }
+                                if close_tag.eq_ignore_ascii_case(child_val.trim()) {
+                                    depth -= 1;
+                                    if depth == 0 {
+                                        let children = group_inline_html(nodes[i + 1..j].to_vec());
+                                        let semantic = match tag.to_lowercase().as_str() {
+                                            "u" => "underline",
+                                            "sub" => "subscript",
+                                            _ => &tag,
+                                        };
+                                        result.push(Node::new(semantic).with_children(children));
+                                        i = j + 1;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        j += 1;
+                    }
+                    if depth == 0 {
+                        continue;
+                    }
+                }
+            }
+        }
+        result.push(nodes[i].clone());
+        i += 1;
+    }
+    result
+}
+
+fn open_inline_tag(html: &str) -> Option<String> {
+    let s = html.trim();
+    if !s.starts_with('<') || !s.ends_with('>') || s.starts_with("</") {
+        return None;
+    }
+    let inner = &s[1..s.len() - 1];
+    let name = inner.split_whitespace().next()?;
+    if matches!(name.to_lowercase().as_str(), "u" | "sub") {
+        Some(name.to_string())
+    } else {
+        None
+    }
+}
+
 fn convert_inlines(nodes: &[MdastNode]) -> Vec<Node> {
-    nodes
+    let raw: Vec<Node> = nodes
         .iter()
         .flat_map(|node| match node {
             MdastNode::Text(text) => vec![Node::text(&text.value)],
@@ -509,5 +571,7 @@ fn convert_inlines(nodes: &[MdastNode]) -> Vec<Node> {
             }
             _ => vec![],
         })
-        .collect()
+        .collect();
+    let grouped = group_inline_html(raw);
+    grouped
 }

@@ -1,5 +1,6 @@
 pub mod block;
 pub mod heading;
+pub mod include;
 pub mod list;
 
 use crate::ast::Node;
@@ -8,6 +9,7 @@ use crate::parser::inline::parse_inline;
 use crate::util::kw;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::path::Path;
 
 pub struct OrgParser {
     lines: Vec<String>,
@@ -601,4 +603,9 @@ fn is_horizontal_rule(line: &str) -> bool {
 
 pub fn parse_org(input: &str) -> Result<Node> {
     OrgParser::new(input).parse()
+}
+
+pub fn parse_org_with_includes(input: &str, base_dir: &Path) -> Result<Node> {
+    let resolved = include::resolve_includes(input, base_dir)?;
+    OrgParser::new(&resolved).parse()
 }

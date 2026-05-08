@@ -129,7 +129,18 @@ fn test_standard_org_to_mdx_fixtures() {
             continue;
         }
 
-        let org = read_file(&org_path);
+        let org_raw = read_file(&org_path);
+        let org = if org_raw.contains("#+INCLUDE:") {
+            org2mdx::parser::org::include::resolve_includes(&org_raw, org_dir).unwrap_or_else(|e| {
+                panic!(
+                    "include resolution failed for {}: {}",
+                    org_path.display(),
+                    e
+                )
+            })
+        } else {
+            org_raw
+        };
         let expected_mdx = read_file(&mdx_path);
         let actual_mdx = match org2mdx::org_to_mdx::convert(&org) {
             Ok(v) => v,

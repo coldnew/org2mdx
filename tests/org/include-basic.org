@@ -1,0 +1,2 @@
+#+TITLE: Include Basic
+#+INCLUDE: "include/included.org"

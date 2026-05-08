@@ -72,6 +72,37 @@ enum SerializeMode {
 // Public API
 // ------------------------------------------------------------
 
+pub fn html_attr_to_jsx(name: &str) -> String {
+    let lower = name.to_lowercase();
+    for (from, to) in ATTR_HTML_TO_CANONICAL {
+        if *from == lower {
+            return to.to_string();
+        }
+    }
+    name.to_string()
+}
+
+pub fn jsx_attr_to_html(name: &str) -> String {
+    for (from, to) in ATTR_CANONICAL_TO_HTML {
+        if name == *from {
+            return to.to_string();
+        }
+    }
+    name.to_string()
+}
+
+/// Parse HTML/JSX string and return the first element's tag + attrs.
+/// Returns None if no element found.
+pub fn extract_first_element(html: &str) -> Option<(String, Vec<(String, String)>)> {
+    let nodes = parse_nodes(html.trim(), ParseMode::Html);
+    for node in &nodes {
+        if let HtmlNode::Element { tag, attrs, .. } = node {
+            return Some((tag.clone(), attrs.clone()));
+        }
+    }
+    None
+}
+
 pub fn html_to_jsx(html: &str) -> String {
     let nodes = parse_nodes(html, ParseMode::Html);
     serialize_nodes(&nodes, SerializeMode::Jsx)

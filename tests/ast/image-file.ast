@@ -1,0 +1,20 @@
+{
+  "type": "root",
+  "children": [
+    {
+      "type": "paragraph",
+      "children": [
+        {
+          "type": "image",
+          "data": {
+            "url": "test.png",
+            "alt": "test.png"
+          }
+        }
+      ]
+    }
+  ],
+  "data": {
+    "title": "Image File"
+  }
+}

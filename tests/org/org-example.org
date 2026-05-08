@@ -1,3 +1,7 @@
 #+begin_example
   ,* I am no real headline
 #+end_example
+
+#+begin_example
+, the comma here should be keeped
+#+end_example

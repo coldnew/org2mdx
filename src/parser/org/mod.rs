@@ -347,8 +347,21 @@ impl OrgParser {
                     .map(|l| {
                         let s = crate::util::strip_prefix_spaces(l, min_indent);
                         // Org-mode escape: leading comma in example/src blocks
-                        // prevents interpretation as headline/keyword and is stripped.
-                        s.strip_prefix(',').unwrap_or(s).to_string()
+                        // prevents interpretation as headline/keyword/table/comma.
+                        // Only strip when followed by an org syntax char: *, #, ,, |, +
+                        if let Some(rest) = s.strip_prefix(',') {
+                            if let Some(c) = rest.chars().next() {
+                                if matches!(c, '*' | '#' | ',' | '|' | '+') {
+                                    rest.to_string()
+                                } else {
+                                    s.to_string()
+                                }
+                            } else {
+                                s.to_string()
+                            }
+                        } else {
+                            s.to_string()
+                        }
                     })
                     .collect();
                 let content = stripped.join("\n");

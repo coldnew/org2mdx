@@ -1,5 +1,7 @@
 # org2mdx
 
+[![CI](https://github.com/coldnew/org2mdx/actions/workflows/ci.yml/badge.svg)](https://github.com/coldnew/org2mdx/actions/workflows/ci.yml)
+
 Convert between Org and MDX with a [unist](https://github.com/syntax-tree/unist)-compliant AST.
 
 ## Installation
@@ -8,33 +10,42 @@ Convert between Org and MDX with a [unist](https://github.com/syntax-tree/unist)
 cargo build --release
 ```
 
+## Build & Test
+
+```bash
+cargo build --release          # build the binary
+cargo test                     # run all tests
+cargo test test_org_to_ast     # run a single test
+cargo fmt                      # format code before committing
+```
+
 ## Usage
 
 ```bash
-# Org → MDX (default)
+# Org -> MDX (default)
 org2mdx input.org
 org2mdx input.org -o output.mdx
 
-# MDX → Org
+# MDX -> Org
 org2mdx input.mdx --from mdx --to org
 org2mdx input.mdx --from mdx --to org -o output.org
 
-# Org → AST (JSON)
+# Org -> AST (JSON)
 org2mdx input.org --to ast
 org2mdx input.org --to ast -o ast.json
 
-# MDX → AST (JSON)
+# MDX -> AST (JSON)
 org2mdx input.mdx --from mdx --to ast
 org2mdx input.mdx --from mdx --to ast -o ast.json
 ```
 
 ### Options
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--from` | `org` | Input format: `org` or `mdx` |
-| `--to` | `mdx` | Output format: `mdx`, `org`, or `ast` |
-| `-o` | stdout | Output file path |
+| Flag     | Default | Description                          |
+|----------|---------|--------------------------------------|
+| `--from` | `org`   | Input format: `org` or `mdx`        |
+| `--to`   | `mdx`   | Output format: `mdx`, `org`, or `ast` |
+| `-o`     | stdout  | Output file path                     |
 
 ### AST output
 
@@ -45,10 +56,10 @@ the unist specification. Each node has a `type` field, optional `children`, `val
 ## Library API
 
 ```rust
-// Org → MDX
+// Org -> MDX
 let mdx = org2mdx::org_to_mdx::convert(org_str)?;
 
-// MDX → Org
+// MDX -> Org
 let org = org2mdx::mdx_to_org::convert(mdx_str)?;
 
 // Parse to AST

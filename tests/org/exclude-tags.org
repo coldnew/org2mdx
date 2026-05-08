@@ -1,0 +1,13 @@
+#+TITLE: Exclude Tags Test
+#+EXCLUDE_TAGS: secret internal
+
+* Visible heading
+Content of visible heading.
+* Hidden heading    :secret:
+This should be stripped.
+** Hidden subheading
+Also stripped.
+* Also hidden    :internal:
+Stripped too.
+* Back to visible
+This is visible.

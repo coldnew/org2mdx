@@ -35,6 +35,15 @@ pub fn split_tags(text: &str) -> (&str, Vec<&str>) {
     (text, vec![])
 }
 
-pub fn should_skip_section(tags: &[&str]) -> bool {
-    tags.contains(&"noexport") || tags.contains(&"skip")
+pub fn should_skip_section(tags: &[&str], exclude_tags: &[String], select_tags: &[String]) -> bool {
+    // If select_tags is non-empty, only headings with at least one matching tag are exported
+    if !select_tags.is_empty() {
+        return !tags.iter().any(|t| select_tags.iter().any(|s| s == t));
+    }
+    // Hardcoded tags always trigger skip
+    if tags.contains(&"noexport") || tags.contains(&"skip") {
+        return true;
+    }
+    // Additional tags from #+EXCLUDE_TAGS:
+    tags.iter().any(|t| exclude_tags.iter().any(|e| e == t))
 }

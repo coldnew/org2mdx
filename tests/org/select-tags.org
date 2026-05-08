@@ -1,0 +1,11 @@
+#+TITLE: Select Tags Test
+#+SELECT_TAGS: include publish
+
+* This is hidden
+No select tag, so stripped.
+* This is shown    :include:
+Visible because of include tag.
+* Also shown    :publish:
+Visible because of publish tag.
+* Hidden again
+No matching tag.

@@ -15,6 +15,8 @@ pub struct OrgParser {
     link_aliases: HashMap<String, String>,
     frontmatter: HashMap<String, Value>,
     pending_attr_html: Option<HashMap<String, Value>>,
+    exclude_tags: Vec<String>,
+    select_tags: Vec<String>,
 }
 
 impl OrgParser {
@@ -25,6 +27,8 @@ impl OrgParser {
             link_aliases: HashMap::new(),
             frontmatter: HashMap::new(),
             pending_attr_html: None,
+            exclude_tags: Vec::new(),
+            select_tags: Vec::new(),
         }
     }
 
@@ -145,6 +149,20 @@ impl OrgParser {
                 let url = v[sp..].trim().to_string();
                 self.link_aliases.insert(name, url);
             }
+        } else if let Some(v) = kw(trimmed, "EXCLUDE_TAGS") {
+            for tag in v.split_whitespace() {
+                let tag = tag.trim();
+                if !tag.is_empty() {
+                    self.exclude_tags.push(tag.to_string());
+                }
+            }
+        } else if let Some(v) = kw(trimmed, "SELECT_TAGS") {
+            for tag in v.split_whitespace() {
+                let tag = tag.trim();
+                if !tag.is_empty() {
+                    self.select_tags.push(tag.to_string());
+                }
+            }
         }
     }
 
@@ -174,7 +192,11 @@ impl OrgParser {
                 continue;
             }
             if let Some((depth, title, tags)) = crate::parser::org::heading::parse_heading(&line) {
-                if crate::parser::org::heading::should_skip_section(&tags) {
+                if crate::parser::org::heading::should_skip_section(
+                    &tags,
+                    &self.exclude_tags,
+                    &self.select_tags,
+                ) {
                     self.skip_section(depth);
                     continue;
                 }

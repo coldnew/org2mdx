@@ -129,20 +129,9 @@ fn test_standard_org_to_mdx_fixtures() {
             continue;
         }
 
-        let org_raw = read_file(&org_path);
-        let org = if org_raw.contains("#+INCLUDE:") {
-            org2mdx::parser::org::include::resolve_includes(&org_raw, org_dir).unwrap_or_else(|e| {
-                panic!(
-                    "include resolution failed for {}: {}",
-                    org_path.display(),
-                    e
-                )
-            })
-        } else {
-            org_raw
-        };
+        let org = read_file(&org_path);
         let expected_mdx = read_file(&mdx_path);
-        let actual_mdx = match org2mdx::org_to_mdx::convert(&org) {
+        let actual_mdx = match org2mdx::org_to_mdx::convert_with_base(&org, org_dir) {
             Ok(v) => v,
             Err(e) => {
                 failures.push(format!("{} org->mdx conversion failed: {}", stem, e));
@@ -223,7 +212,7 @@ fn test_standard_mdx_to_org_fixtures() {
             continue;
         }
 
-        let actual_mdx = match org2mdx::org_to_mdx::convert(&actual_org) {
+        let actual_mdx = match org2mdx::org_to_mdx::convert_with_base(&actual_org, org_dir) {
             Ok(v) => v,
             Err(e) => {
                 failures.push(format!("{} mdx->org->mdx conversion failed: {}", stem, e));
@@ -241,12 +230,12 @@ fn test_standard_mdx_to_org_fixtures() {
             continue;
         }
 
-        if let Err(e) = org2mdx::org_to_ast::parse(&expected_org) {
+        if let Err(e) = org2mdx::org_to_ast::parse_with_base(&expected_org, org_dir) {
             failures.push(format!("{} expected org fixture parse failed: {}", stem, e));
             continue;
         }
 
-        if let Err(e) = org2mdx::org_to_ast::parse(&actual_org) {
+        if let Err(e) = org2mdx::org_to_ast::parse_with_base(&actual_org, org_dir) {
             failures.push(format!(
                 "{} mdx->org output is not valid org parse: {}",
                 stem, e

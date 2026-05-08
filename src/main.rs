@@ -19,30 +19,18 @@ struct Cli {
 fn main() {
     let cli = Cli::parse();
     let input_content = fs::read_to_string(&cli.input).expect("failed to read input file");
-
     let base_dir = Path::new(&cli.input).parent().unwrap_or(Path::new("."));
 
-    // For org→* conversions, resolve #+INCLUDE: directives before parsing
-    let resolved = if cli.from == "org" && input_content.contains("#+INCLUDE:") {
-        match org2mdx::parser::org::include::resolve_includes(&input_content, base_dir) {
-            Ok(resolved) => resolved,
-            Err(e) => {
-                eprintln!("Include resolution failed: {}", e);
-                std::process::exit(1);
-            }
-        }
-    } else {
-        input_content
-    };
-
     let output_content = match (cli.from.as_str(), cli.to.as_str()) {
-        ("org", "mdx") => org2mdx::org_to_mdx::convert(&resolved),
-        ("mdx", "org") => org2mdx::mdx_to_org::convert(&resolved),
-        ("org", "ast") => org2mdx::org_to_ast::parse(&resolved).and_then(|root| {
-            serde_json::to_string_pretty(&root)
-                .map_err(|e| org2mdx::Error::InvalidInput(e.to_string()))
-        }),
-        ("mdx", "ast") => org2mdx::mdx_to_ast::parse(&resolved).and_then(|root| {
+        ("org", "mdx") => org2mdx::org_to_mdx::convert_with_base(&input_content, base_dir),
+        ("mdx", "org") => org2mdx::mdx_to_org::convert(&input_content),
+        ("org", "ast") => {
+            org2mdx::org_to_ast::parse_with_base(&input_content, base_dir).and_then(|root| {
+                serde_json::to_string_pretty(&root)
+                    .map_err(|e| org2mdx::Error::InvalidInput(e.to_string()))
+            })
+        }
+        ("mdx", "ast") => org2mdx::mdx_to_ast::parse(&input_content).and_then(|root| {
             serde_json::to_string_pretty(&root)
                 .map_err(|e| org2mdx::Error::InvalidInput(e.to_string()))
         }),

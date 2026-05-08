@@ -136,6 +136,16 @@ fn render_node(out: &mut String, node: &Node) {
             let content = render_inlines_deep(&node.children);
             out.push_str(&format!("[^{}]: {}\n\n", id, content));
         }
+        "image" => {
+            let rendered = render_inlines(&Some(vec![node.clone()]));
+            out.push_str(&rendered);
+            out.push_str("\n\n");
+        }
+        "link" => {
+            let rendered = render_inlines(&Some(vec![node.clone()]));
+            out.push_str(&rendered);
+            out.push_str("\n\n");
+        }
         _ => {}
     }
 }
@@ -259,7 +269,7 @@ fn render_inlines(children: &Option<Vec<Node>>) -> String {
                         }
                         out.push_str(&format!("<img{} />", attrs_str));
                     } else {
-                        out.push_str(&format!("[{}]({})", alt, url));
+                        out.push_str(&format!("![{}]({})", alt, url));
                     }
                 }
                 "break" => out.push_str("  \n"),

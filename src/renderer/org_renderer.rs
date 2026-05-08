@@ -136,9 +136,28 @@ fn render_inlines_simple(children: &Option<Vec<Node>>) -> String {
     out
 }
 
+fn emit_attr_html(out: &mut String, node: &Node) {
+    if let Some(attr_map) = node.get_data_map("attr_html") {
+        let mut parts = Vec::new();
+        for (k, v) in attr_map {
+            let html_key = crate::parser::html::jsx_attr_to_html(k);
+            let val = v.as_str().unwrap_or("");
+            if val.is_empty() {
+                parts.push(format!(":{}", html_key));
+            } else {
+                parts.push(format!(":{} {}", html_key, val));
+            }
+        }
+        if !parts.is_empty() {
+            out.push_str(&format!("#+ATTR_HTML: {}\n", parts.join(" ")));
+        }
+    }
+}
+
 fn render_node_org(out: &mut String, node: &Node, link_abbreviations: &[(String, String)]) {
     match node.r#type.as_str() {
         "heading" => {
+            emit_attr_html(out, node);
             let depth: u64 = node
                 .data
                 .get("depth")
@@ -158,6 +177,7 @@ fn render_node_org(out: &mut String, node: &Node, link_abbreviations: &[(String,
             }
         }
         "paragraph" => {
+            emit_attr_html(out, node);
             let content = render_inlines_org(&node.children, link_abbreviations);
             if !content.is_empty() {
                 if node.get_data_bool("hardLineBreak").unwrap_or(false) {
@@ -167,8 +187,12 @@ fn render_node_org(out: &mut String, node: &Node, link_abbreviations: &[(String,
                 }
             }
         }
-        "list" => render_list_org(out, node, 0, link_abbreviations),
+        "list" => {
+            emit_attr_html(out, node);
+            render_list_org(out, node, 0, link_abbreviations)
+        }
         "code" => {
+            emit_attr_html(out, node);
             let val = node.value.as_deref().unwrap_or("");
             let has_lang = node.get_data_str("lang").is_some();
             let single_line = !val.contains('\n');
@@ -205,6 +229,7 @@ fn render_node_org(out: &mut String, node: &Node, link_abbreviations: &[(String,
             }
         }
         "blockquote" => {
+            emit_attr_html(out, node);
             out.push_str("#+begin_quote\n");
             if let Some(children) = &node.children {
                 for child in children {

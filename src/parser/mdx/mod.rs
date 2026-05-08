@@ -450,6 +450,34 @@ fn convert_node(node: &MdastNode) -> Vec<Node> {
         }
         MdastNode::ThematicBreak(_) => vec![Node::new("thematicBreak")],
         MdastNode::Html(html) => {
+            if let Some((tag, attrs)) = crate::parser::html::extract_first_element(&html.value) {
+                if tag.eq_ignore_ascii_case("img") {
+                    let mut src = String::new();
+                    let mut alt = String::new();
+                    let mut attr_map = serde_json::Map::new();
+                    for (name, value) in &attrs {
+                        let name_lower = name.to_lowercase();
+                        if name_lower == "src" {
+                            src = value.clone();
+                        } else if name_lower == "alt" {
+                            alt = value.clone();
+                        } else {
+                            attr_map.insert(name.clone(), Value::String(value.clone()));
+                        }
+                    }
+                    if !src.is_empty() {
+                        let mut img_node = Node::new("image")
+                            .data_str("url", &src)
+                            .data_str("alt", &alt);
+                        if !attr_map.is_empty() {
+                            img_node
+                                .data
+                                .insert("attr_html".to_string(), Value::Object(attr_map));
+                        }
+                        return vec![img_node];
+                    }
+                }
+            }
             vec![Node::new("html").with_value(&crate::parser::html::html_to_jsx(&html.value))]
         }
         MdastNode::MdxFlowExpression(expr) => {
@@ -637,7 +665,36 @@ fn convert_inlines(nodes: &[MdastNode]) -> Vec<Node> {
             }
             MdastNode::Break(_) => vec![Node::new("break")],
             MdastNode::Html(html) => {
-                vec![Node::new("html").with_value(&crate::parser::html::ensure_jsx(&html.value))]
+                let val = &crate::parser::html::ensure_jsx(&html.value);
+                if let Some((tag, attrs)) = crate::parser::html::extract_first_element(val) {
+                    if tag.eq_ignore_ascii_case("img") {
+                        let mut src = String::new();
+                        let mut alt = String::new();
+                        let mut attr_map = serde_json::Map::new();
+                        for (name, value) in &attrs {
+                            let name_lower = name.to_lowercase();
+                            if name_lower == "src" {
+                                src = value.clone();
+                            } else if name_lower == "alt" {
+                                alt = value.clone();
+                            } else {
+                                attr_map.insert(name.clone(), Value::String(value.clone()));
+                            }
+                        }
+                        if !src.is_empty() {
+                            let mut img_node = Node::new("image")
+                                .data_str("url", &src)
+                                .data_str("alt", &alt);
+                            if !attr_map.is_empty() {
+                                img_node
+                                    .data
+                                    .insert("attr_html".to_string(), Value::Object(attr_map));
+                            }
+                            return vec![img_node];
+                        }
+                    }
+                }
+                vec![Node::new("html").with_value(val)]
             }
             MdastNode::MdxTextExpression(expr) => {
                 vec![Node::new("html").with_value(&format!("{{{}}}", expr.value))]

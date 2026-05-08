@@ -1,0 +1,8 @@
+#+TITLE: Comment Line Test
+
+This is a visible paragraph.
+# This is a single-line comment and should be stripped
+Another visible paragraph.
+#+ This is also a comment and should be stripped
+#- So is this
+Final paragraph.

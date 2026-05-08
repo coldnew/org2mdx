@@ -224,7 +224,7 @@ impl OrgParser {
                 self.advance();
                 continue;
             }
-            if trimmed.starts_with("#+") || trimmed.starts_with("#-") {
+            if trimmed.starts_with('#') {
                 self.advance();
                 continue;
             }
@@ -400,7 +400,7 @@ impl OrgParser {
             if trimmed.is_empty() {
                 break;
             }
-            if trimmed.starts_with("#+") || trimmed.starts_with("#-") {
+            if trimmed.starts_with('#') {
                 break;
             }
             if crate::parser::org::heading::parse_heading(line).is_some() {

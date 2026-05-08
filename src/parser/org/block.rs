@@ -14,6 +14,7 @@ pub enum BlockType {
     Quote,
     Center,
     Export(ExportOptions),
+    Comment,
     Unknown(String),
 }
 
@@ -25,6 +26,7 @@ impl BlockType {
             BlockType::Quote => "quote".to_string(),
             BlockType::Center => "center".to_string(),
             BlockType::Export(_) => "export".to_string(),
+            BlockType::Comment => "comment".to_string(),
             BlockType::Unknown(name) => name.clone(),
         }
     }
@@ -58,6 +60,8 @@ pub fn parse_block_begin(line: &str) -> BlockType {
         BlockType::Quote
     } else if lower.starts_with("#+begin_center") {
         BlockType::Center
+    } else if lower.starts_with("#+begin_comment") {
+        BlockType::Comment
     } else if lower.starts_with("#+begin_export") {
         let rest = lower.strip_prefix("#+begin_export").unwrap_or("").trim();
         let parts: Vec<&str> = rest.split_whitespace().collect();

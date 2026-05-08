@@ -1,0 +1,11 @@
+#+OPTIONS: num:nil superscript:nil
+#+TITLE: Comment Block Test
+
+This text should appear.
+
+#+BEGIN_COMMENT
+This is a comment.
+It should be completely stripped from output.
+#+END_COMMENT
+
+This text should also appear.

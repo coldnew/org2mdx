@@ -354,6 +354,10 @@ impl OrgParser {
                     .with_value(&content)
                     .data_str("lang", &opts.export_type))
             }
+            crate::parser::org::block::BlockType::Comment => {
+                // Comment blocks are completely stripped from output
+                Ok(Node::new("comment"))
+            }
             crate::parser::org::block::BlockType::Unknown(_) => {
                 let content = lines.join(" ");
                 Ok(Node::new("paragraph").with_children(parse_inline(

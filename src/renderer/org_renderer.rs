@@ -243,6 +243,11 @@ fn render_node_org(out: &mut String, node: &Node, link_abbreviations: &[(String,
             }
             out.push_str("#+end_export\n\n");
         }
+        "footnoteDefinition" => {
+            let id = node.get_data_str("identifier").unwrap_or("");
+            let content = render_inlines_org_deep(&node.children, link_abbreviations);
+            out.push_str(&format!("[fn:{}] {}\n\n", id, content));
+        }
         _ => {}
     }
 }
@@ -371,12 +376,36 @@ fn render_inlines_org(
                     out.push_str(&format!("[[file:{}][{}]]", url, alt));
                 }
                 "break" => out.push_str("\\\\\n"),
+                "footnoteReference" => {
+                    let id = inline.get_data_str("identifier").unwrap_or("");
+                    out.push_str(&format!("[fn:{}]", id));
+                }
                 "html" => {
                     if let Some(val) = &inline.value {
                         out.push_str(val);
                     }
                 }
                 _ => {}
+            }
+        }
+    }
+    out
+}
+
+fn render_inlines_org_deep(
+    children: &Option<Vec<Node>>,
+    link_abbreviations: &[(String, String)],
+) -> String {
+    let mut out = String::new();
+    if let Some(blocks) = children {
+        for block in blocks {
+            if block.r#type == "paragraph" {
+                out.push_str(&render_inlines_org(&block.children, link_abbreviations));
+            } else {
+                out.push_str(&render_inlines_org(
+                    &Some(vec![block.clone()]),
+                    link_abbreviations,
+                ));
             }
         }
     }

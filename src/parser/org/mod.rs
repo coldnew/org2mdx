@@ -276,6 +276,10 @@ impl OrgParser {
                 self.advance();
                 continue;
             }
+            if let Some(fn_def) = self.try_parse_footnote_definition(&line) {
+                blocks.push(fn_def);
+                continue;
+            }
             let (para, _had_lb) = self.parse_paragraph();
             if let Some(ref children) = para.children {
                 if !children.is_empty() {
@@ -432,6 +436,53 @@ impl OrgParser {
             }
         }
         lines.join("\n")
+    }
+
+    fn try_parse_footnote_definition(&mut self, line: &str) -> Option<Node> {
+        if !line.starts_with("[fn:") {
+            return None;
+        }
+        let after_prefix = &line[4..];
+        let mut ident_end = 0;
+        for c in after_prefix.chars() {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                ident_end += c.len_utf8();
+            } else {
+                break;
+            }
+        }
+        if ident_end == 0 {
+            return None;
+        }
+        let identifier = &after_prefix[..ident_end];
+        if !after_prefix[ident_end..].starts_with(']') {
+            return None;
+        }
+        let after_bracket = after_prefix[ident_end + 1..].trim_start();
+        let mut def_text = after_bracket.to_string();
+        self.advance();
+        while let Some(next_line) = self.peek() {
+            let trimmed = next_line.trim();
+            if trimmed.is_empty() {
+                break;
+            }
+            if trimmed.starts_with('#')
+                || crate::parser::org::heading::parse_heading(next_line).is_some()
+                || trimmed.starts_with("[fn:")
+                || crate::parser::org::list::is_unordered_item(next_line)
+                || crate::parser::org::list::is_ordered_item(next_line)
+            {
+                break;
+            }
+            def_text.push(' ');
+            def_text.push_str(trimmed);
+            self.advance();
+        }
+        let parsed = parse_inline(&def_text, &self.link_aliases, &mut self.pending_attr_html);
+        let node = Node::new("footnoteDefinition")
+            .data_str("identifier", identifier)
+            .with_children(vec![Node::new("paragraph").with_children(parsed)]);
+        Some(node)
     }
 
     fn parse_paragraph(&mut self) -> (Node, bool) {

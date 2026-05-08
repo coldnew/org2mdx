@@ -10,7 +10,14 @@ use std::collections::HashMap;
 pub fn parse_mdx(input: &str) -> Result<Node> {
     let (frontmatter, body) = extract_frontmatter(input);
     let (processed_body, exports) = extract_export_blocks(body);
-    let mdast = to_mdast(&processed_body, &markdown::ParseOptions::default())
+    let mut constructs = markdown::Constructs::default();
+    constructs.gfm_footnote_definition = true;
+    constructs.gfm_label_start_footnote = true;
+    let parse_opts = markdown::ParseOptions {
+        constructs,
+        ..markdown::ParseOptions::default()
+    };
+    let mdast = to_mdast(&processed_body, &parse_opts)
         .map_err(|e| crate::error::Error::InvalidInput(e.to_string()))?;
     let blocks = convert_node(&mdast);
     let blocks = merge_exports(blocks, &exports);
@@ -506,6 +513,12 @@ fn convert_node(node: &MdastNode) -> Vec<Node> {
             let value = jsx_element_to_html_value(&el.name, &el.attributes, &el.children);
             vec![Node::new("html").with_value(&value)]
         }
+        MdastNode::FootnoteDefinition(fn_def) => {
+            let children: Vec<Node> = fn_def.children.iter().flat_map(convert_node).collect();
+            vec![Node::new("footnoteDefinition")
+                .with_children(children)
+                .data_str("identifier", &fn_def.identifier)]
+        }
         _ => vec![],
     }
 }
@@ -721,6 +734,9 @@ fn convert_inlines(nodes: &[MdastNode]) -> Vec<Node> {
             MdastNode::MdxJsxTextElement(el) => {
                 let value = jsx_element_to_html_value(&el.name, &el.attributes, &el.children);
                 vec![Node::new("html").with_value(&value)]
+            }
+            MdastNode::FootnoteReference(fn_ref) => {
+                vec![Node::new("footnoteReference").data_str("identifier", &fn_ref.identifier)]
             }
             _ => vec![],
         })

@@ -22,6 +22,18 @@ pub fn parse_inline(
                 continue;
             }
         }
+        if i + 3 < len
+            && chars[i] == '['
+            && chars[i + 1] == 'f'
+            && chars[i + 2] == 'n'
+            && chars[i + 3] == ':'
+        {
+            if let Some((node, consumed)) = parse_footnote(&chars, i, link_aliases) {
+                result.push(node);
+                i += consumed;
+                continue;
+            }
+        }
         let remaining: String = chars[i..].iter().collect();
         if remaining.starts_with("http://") || remaining.starts_with("https://") {
             let url_start = i;
@@ -131,6 +143,50 @@ pub fn parse_inline(
         i += 1;
     }
     result
+}
+
+fn parse_footnote(
+    chars: &[char],
+    start: usize,
+    link_aliases: &HashMap<String, String>,
+) -> Option<(Node, usize)> {
+    // Already checked [fn: prefix. Now parse identifier.
+    let mut i = start + 4;
+    while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '-' || chars[i] == '_') {
+        i += 1;
+    }
+    if i == start + 4 {
+        return None;
+    }
+    let identifier: String = chars[start + 4..i].iter().collect();
+    if i >= chars.len() {
+        return None;
+    }
+    if chars[i] == ']' {
+        // Inline reference: [fn:1] or [fn:label]
+        let node = Node::new("footnoteReference").data_str("identifier", &identifier);
+        return Some((node, i - start + 1));
+    } else if chars[i] == ':' {
+        // Inline definition: [fn:1: definition text]
+        i += 1;
+        while i < chars.len() && chars[i] == ' ' {
+            i += 1;
+        }
+        let def_start = i;
+        while i < chars.len() && chars[i] != ']' {
+            i += 1;
+        }
+        if i >= chars.len() {
+            return None;
+        }
+        let def_text: String = chars[def_start..i].iter().collect();
+        let parsed = parse_inline(&def_text, link_aliases, &mut None);
+        let node = Node::new("footnoteDefinition")
+            .data_str("identifier", &identifier)
+            .with_children(vec![Node::new("paragraph").with_children(parsed)]);
+        return Some((node, i - start + 1));
+    }
+    None
 }
 
 fn parse_braced(chars: &[char], start: usize) -> Option<(String, usize)> {

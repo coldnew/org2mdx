@@ -223,12 +223,46 @@ fn render_inlines(children: &Option<Vec<Node>>) -> String {
                 "link" => {
                     let text = render_inlines(&inline.children);
                     let url = inline.get_data_str("url").unwrap_or("");
-                    out.push_str(&format!("[{}]({})", text, url));
+                    if let Some(attr_map) = inline.get_data_map("attr_html") {
+                        let mut attrs_str = format!(" href=\"{}\"", url);
+                        for (k, v) in attr_map {
+                            let val = v.as_str().unwrap_or("");
+                            if val.is_empty() {
+                                attrs_str.push_str(&format!(" {}", k));
+                            } else {
+                                attrs_str.push_str(&format!(
+                                    " {}=\"{}\"",
+                                    k,
+                                    v.as_str().unwrap_or("")
+                                ));
+                            }
+                        }
+                        out.push_str(&format!("<a{}>{}</a>", attrs_str, text));
+                    } else {
+                        out.push_str(&format!("[{}]({})", text, url));
+                    }
                 }
                 "image" => {
                     let alt = inline.get_data_str("alt").unwrap_or("");
                     let url = inline.get_data_str("url").unwrap_or("");
-                    out.push_str(&format!("[{}]({})", alt, url));
+                    if let Some(attr_map) = inline.get_data_map("attr_html") {
+                        let mut attrs_str = format!(" src=\"{}\" alt=\"{}\"", url, alt);
+                        for (k, v) in attr_map {
+                            let val = v.as_str().unwrap_or("");
+                            if val.is_empty() {
+                                attrs_str.push_str(&format!(" {}", k));
+                            } else {
+                                attrs_str.push_str(&format!(
+                                    " {}=\"{}\"",
+                                    k,
+                                    v.as_str().unwrap_or("")
+                                ));
+                            }
+                        }
+                        out.push_str(&format!("<img{} />", attrs_str));
+                    } else {
+                        out.push_str(&format!("[{}]({})", alt, url));
+                    }
                 }
                 "break" => out.push_str("  \n"),
                 "html" => {

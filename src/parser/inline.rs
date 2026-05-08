@@ -1,15 +1,22 @@
 use crate::ast::Node;
 use crate::util::escape_url_parens;
+use serde_json::Value;
 use std::collections::HashMap;
 
-pub fn parse_inline(text: &str, link_aliases: &HashMap<String, String>) -> Vec<Node> {
+pub fn parse_inline(
+    text: &str,
+    link_aliases: &HashMap<String, String>,
+    pending_attr_html: &mut Option<HashMap<String, Value>>,
+) -> Vec<Node> {
     let mut result = Vec::new();
     let chars: Vec<char> = text.chars().collect();
     let len = chars.len();
     let mut i = 0;
     while i < len {
         if i + 1 < len && chars[i] == '[' && chars[i + 1] == '[' {
-            if let Some((node, consumed)) = parse_link_or_image(&chars, i, link_aliases) {
+            if let Some((node, consumed)) =
+                parse_link_or_image(&chars, i, link_aliases, pending_attr_html)
+            {
                 result.push(node);
                 i += consumed;
                 continue;
@@ -32,7 +39,7 @@ pub fn parse_inline(text: &str, link_aliases: &HashMap<String, String>) -> Vec<N
         }
         if chars[i] == '*' {
             if let Some((inner, n)) = markup_at(&chars, i, '*') {
-                let inner_nodes = parse_inline(&inner, link_aliases);
+                let inner_nodes = parse_inline(&inner, link_aliases, &mut None);
                 result.push(Node::new("strong").with_children(inner_nodes));
                 i += n;
                 continue;
@@ -40,7 +47,7 @@ pub fn parse_inline(text: &str, link_aliases: &HashMap<String, String>) -> Vec<N
         }
         if chars[i] == '/' {
             if let Some((inner, n)) = markup_at(&chars, i, '/') {
-                let inner_nodes = parse_inline(&inner, link_aliases);
+                let inner_nodes = parse_inline(&inner, link_aliases, &mut None);
                 result.push(Node::new("emphasis").with_children(inner_nodes));
                 i += n;
                 continue;
@@ -48,7 +55,7 @@ pub fn parse_inline(text: &str, link_aliases: &HashMap<String, String>) -> Vec<N
         }
         if chars[i] == '+' {
             if let Some((inner, n)) = markup_at(&chars, i, '+') {
-                let inner_nodes = parse_inline(&inner, link_aliases);
+                let inner_nodes = parse_inline(&inner, link_aliases, &mut None);
                 result.push(Node::new("delete").with_children(inner_nodes));
                 i += n;
                 continue;
@@ -75,14 +82,14 @@ pub fn parse_inline(text: &str, link_aliases: &HashMap<String, String>) -> Vec<N
         if chars[i] == '_' {
             if i + 1 < chars.len() && chars[i + 1] == '{' {
                 if let Some((inner, n)) = parse_braced(&chars, i + 1) {
-                    let inner_nodes = parse_inline(&inner, link_aliases);
+                    let inner_nodes = parse_inline(&inner, link_aliases, &mut None);
                     result.push(Node::new("subscript").with_children(inner_nodes));
                     i += n + 1;
                     continue;
                 }
             }
             if let Some((inner, n)) = markup_at(&chars, i, '_') {
-                let inner_nodes = parse_inline(&inner, link_aliases);
+                let inner_nodes = parse_inline(&inner, link_aliases, &mut None);
                 result.push(Node::new("underline").with_children(inner_nodes));
                 i += n;
                 continue;
@@ -90,7 +97,7 @@ pub fn parse_inline(text: &str, link_aliases: &HashMap<String, String>) -> Vec<N
         }
         if chars[i] == '^' && i + 1 < chars.len() && chars[i + 1] == '{' {
             if let Some((inner, n)) = parse_braced(&chars, i + 1) {
-                let inner_nodes = parse_inline(&inner, link_aliases);
+                let inner_nodes = parse_inline(&inner, link_aliases, &mut None);
                 result.push(Node::new("superscript").with_children(inner_nodes));
                 i += n + 1;
                 continue;
@@ -191,6 +198,7 @@ fn parse_link_or_image(
     chars: &[char],
     start: usize,
     link_aliases: &HashMap<String, String>,
+    pending_attr_html: &mut Option<HashMap<String, Value>>,
 ) -> Option<(Node, usize)> {
     let mut i = start + 2;
     let mut target = String::new();
@@ -247,65 +255,101 @@ fn parse_link_or_image(
         let encoded = path.to_string();
         if is_image {
             let alt = desc.as_deref().unwrap_or(path).to_string();
-            return Some((
-                Node::new("image")
-                    .data_str("url", &encoded)
-                    .data_str("alt", &alt),
-                consumed,
-            ));
+            let mut img_node = Node::new("image")
+                .data_str("url", &encoded)
+                .data_str("alt", &alt);
+            if let Some(attrs) = pending_attr_html.take() {
+                if !attrs.is_empty() {
+                    img_node.data.insert(
+                        "attr_html".to_string(),
+                        Value::Object(attrs.into_iter().collect()),
+                    );
+                }
+            }
+            return Some((img_node, consumed));
         } else {
             let text = desc.as_deref().unwrap_or(path).to_string();
-            let text_nodes = parse_inline(&text, link_aliases);
-            return Some((
-                Node::new("link")
-                    .with_children(text_nodes)
-                    .data_str("url", &format!("file:{}", encoded)),
-                consumed,
-            ));
+            let text_nodes = parse_inline(&text, link_aliases, &mut None);
+            let mut link_node = Node::new("link")
+                .with_children(text_nodes)
+                .data_str("url", &format!("file:{}", encoded));
+            if let Some(attrs) = pending_attr_html.take() {
+                if !attrs.is_empty() {
+                    link_node.data.insert(
+                        "attr_html".to_string(),
+                        Value::Object(attrs.into_iter().collect()),
+                    );
+                }
+            }
+            return Some((link_node, consumed));
         }
     }
     if let Some(url) = link_aliases.get(&target) {
         let text = desc.as_deref().unwrap_or(&target).to_string();
-        let text_nodes = parse_inline(&text, link_aliases);
+        let text_nodes = parse_inline(&text, link_aliases, &mut None);
         let url_escaped = escape_url_parens(url);
-        return Some((
-            Node::new("link")
-                .with_children(text_nodes)
-                .data_str("url", &url_escaped),
-            consumed,
-        ));
+        let mut link_node = Node::new("link")
+            .with_children(text_nodes)
+            .data_str("url", &url_escaped);
+        if let Some(attrs) = pending_attr_html.take() {
+            if !attrs.is_empty() {
+                link_node.data.insert(
+                    "attr_html".to_string(),
+                    Value::Object(attrs.into_iter().collect()),
+                );
+            }
+        }
+        return Some((link_node, consumed));
     }
     if let Some((alias, suffix)) = target.split_once(':') {
         if let Some(base_url) = link_aliases.get(alias) {
             let full_url = format!("{}{}", base_url, suffix);
             let link_text = format!("{}:{}", alias, suffix);
             let text = desc.as_deref().unwrap_or(&link_text).to_string();
-            let text_nodes = parse_inline(&text, link_aliases);
+            let text_nodes = parse_inline(&text, link_aliases, &mut None);
             let url_escaped = escape_url_parens(&full_url);
-            return Some((
-                Node::new("link")
-                    .with_children(text_nodes)
-                    .data_str("url", &url_escaped),
-                consumed,
-            ));
+            let mut link_node = Node::new("link")
+                .with_children(text_nodes)
+                .data_str("url", &url_escaped);
+            if let Some(attrs) = pending_attr_html.take() {
+                if !attrs.is_empty() {
+                    link_node.data.insert(
+                        "attr_html".to_string(),
+                        Value::Object(attrs.into_iter().collect()),
+                    );
+                }
+            }
+            return Some((link_node, consumed));
         }
     }
     let url = escape_url_parens(&target);
     if let Some(d) = desc {
-        let text_nodes = parse_inline(&d, link_aliases);
-        Some((
-            Node::new("link")
-                .with_children(text_nodes)
-                .data_str("url", &url),
-            consumed,
-        ))
+        let text_nodes = parse_inline(&d, link_aliases, &mut None);
+        let mut link_node = Node::new("link")
+            .with_children(text_nodes)
+            .data_str("url", &url);
+        if let Some(attrs) = pending_attr_html.take() {
+            if !attrs.is_empty() {
+                link_node.data.insert(
+                    "attr_html".to_string(),
+                    Value::Object(attrs.into_iter().collect()),
+                );
+            }
+        }
+        Some((link_node, consumed))
     } else {
         let text = target.replace('&', "\\&");
-        Some((
-            Node::new("link")
-                .with_children(vec![Node::text(&text)])
-                .data_str("url", &url),
-            consumed,
-        ))
+        let mut link_node = Node::new("link")
+            .with_children(vec![Node::text(&text)])
+            .data_str("url", &url);
+        if let Some(attrs) = pending_attr_html.take() {
+            if !attrs.is_empty() {
+                link_node.data.insert(
+                    "attr_html".to_string(),
+                    Value::Object(attrs.into_iter().collect()),
+                );
+            }
+        }
+        Some((link_node, consumed))
     }
 }

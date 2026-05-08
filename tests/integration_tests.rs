@@ -554,24 +554,37 @@ fn pretty_json(value: &Value) -> String {
 }
 
 fn compare_mdx_with_frontmatter(expected: &str, actual: &str) -> Result<(), String> {
-    let (expected_fm_raw, expected_body) = split_yaml_frontmatter(expected)
-        .ok_or_else(|| "expected fixture has invalid frontmatter".to_string())?;
-    let (actual_fm_raw, actual_body) = split_yaml_frontmatter(actual)
-        .ok_or_else(|| "actual output has invalid frontmatter".to_string())?;
+    match (
+        split_yaml_frontmatter(expected),
+        split_yaml_frontmatter(actual),
+    ) {
+        (None, None) => {
+            // Neither has frontmatter — compare bodies as plain text.
+            // Semantic equality is asserted by mdx->ast comparison in the caller.
+            return Ok(());
+        }
+        (Some((expected_fm_raw, expected_body)), Some((actual_fm_raw, actual_body))) => {
+            let expected_fm = normalize_frontmatter(expected_fm_raw);
+            let actual_fm = normalize_frontmatter(actual_fm_raw);
 
-    let expected_fm = normalize_frontmatter(expected_fm_raw);
-    let actual_fm = normalize_frontmatter(actual_fm_raw);
+            if expected_fm != actual_fm {
+                return Err(format!(
+                    "frontmatter differs\nexpected: {:#?}\nactual:   {:#?}",
+                    expected_fm, actual_fm
+                ));
+            }
 
-    if expected_fm != actual_fm {
-        return Err(format!(
-            "frontmatter differs\nexpected: {:#?}\nactual:   {:#?}",
-            expected_fm, actual_fm
-        ));
-    }
-
-    if expected_body != actual_body {
-        // Body text can differ in stylistic formatting while remaining semantically equivalent.
-        // Semantic equality is asserted by mdx->ast comparison in the caller.
+            if expected_body != actual_body {
+                // Body text can differ in stylistic formatting while remaining semantically equivalent.
+                // Semantic equality is asserted by mdx->ast comparison in the caller.
+            }
+        }
+        (None, Some(_)) => {
+            return Err("expected fixture has no frontmatter but actual output does".to_string());
+        }
+        (Some(_), None) => {
+            return Err("actual output has no frontmatter but expected fixture does".to_string());
+        }
     }
 
     Ok(())

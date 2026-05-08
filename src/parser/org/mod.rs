@@ -344,7 +344,12 @@ impl OrgParser {
                     .unwrap_or(0);
                 let stripped: Vec<String> = lines
                     .iter()
-                    .map(|l| crate::util::strip_prefix_spaces(l, min_indent).to_string())
+                    .map(|l| {
+                        let s = crate::util::strip_prefix_spaces(l, min_indent);
+                        // Org-mode escape: leading comma in example/src blocks
+                        // prevents interpretation as headline/keyword and is stripped.
+                        s.strip_prefix(',').unwrap_or(s).to_string()
+                    })
                     .collect();
                 let content = stripped.join("\n");
                 Ok(Node::new("code")

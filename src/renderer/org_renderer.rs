@@ -1,52 +1,40 @@
 use crate::ast::Node;
+use crate::renderer::frontmatter;
 use std::collections::HashSet;
 
-const ORDERED_FRONTMATTER_KEYS: [&str; 10] = [
-    "title", "date", "updated", "abbrlink", "author", "email", "options", "tags", "language",
-    "alias",
+const ORDERED_FRONTMATTER_KEYS: [&str; 9] = [
+    "title", "date", "updated", "abbrlink", "author", "email", "tags", "language", "alias",
 ];
 
 pub fn render_org(root: &Node) -> String {
     let mut out = String::new();
     let org_opts = root.data.get("org").and_then(|org| org.get("options"));
     if !root.data.is_empty() {
-        for key in ORDERED_FRONTMATTER_KEYS.iter() {
-            if *key == "options" {
-                if let Some(opts) = org_opts.and_then(|o| o.as_object()) {
-                    let mut parts = Vec::new();
-                    for (k, v) in opts {
-                        let org_k = if k == "superscript" { "^" } else { k.as_str() };
-                        let v_str = match v {
-                            serde_json::Value::Bool(false) => "nil",
-                            serde_json::Value::Bool(true) => "t",
-                            serde_json::Value::String(s) => s.as_str(),
-                            _ => continue,
-                        };
-                        parts.push(format!("{}:{}", org_k, v_str));
-                    }
-                    if !parts.is_empty() {
-                        out.push_str(&format!("#+OPTIONS: {}\n", parts.join(" ")));
-                    }
-                }
-                continue;
+        // Handle #+OPTIONS: specially — reads from nested org.options, not a top-level key
+        if let Some(opts) = org_opts.and_then(|o| o.as_object()) {
+            let mut parts = Vec::new();
+            for (k, v) in opts {
+                let org_k = if k == "superscript" { "^" } else { k.as_str() };
+                let v_str = match v {
+                    serde_json::Value::Bool(false) => "nil",
+                    serde_json::Value::Bool(true) => "t",
+                    serde_json::Value::String(s) => s.as_str(),
+                    _ => continue,
+                };
+                parts.push(format!("{}:{}", org_k, v_str));
             }
-            if let Some(value) = root.data.get(*key) {
-                render_frontmatter_org(&mut out, key, value);
+            if !parts.is_empty() {
+                out.push_str(&format!("#+OPTIONS: {}\n", parts.join(" ")));
             }
         }
-        let mut remaining_keys: Vec<&String> = root
-            .data
-            .keys()
-            .filter(|k| {
-                let k_lower = k.to_lowercase();
-                !ORDERED_FRONTMATTER_KEYS.contains(&k_lower.as_str())
-            })
-            .collect();
-        remaining_keys.sort();
-        for key in remaining_keys {
-            let value = &root.data[key];
-            render_frontmatter_org(&mut out, key, value);
-        }
+        frontmatter::render_frontmatter(
+            &mut out,
+            root,
+            &ORDERED_FRONTMATTER_KEYS,
+            |out, key, value| {
+                render_frontmatter_org(out, key, value);
+            },
+        );
         out.push('\n');
     }
     let link_abbreviations = collect_link_abbreviations(root);

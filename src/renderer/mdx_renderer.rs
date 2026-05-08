@@ -1,4 +1,5 @@
 use crate::ast::Node;
+use crate::renderer::frontmatter;
 
 const ORDERED_FRONTMATTER_KEYS: [&str; 10] = [
     "title", "date", "updated", "abbrlink", "author", "email", "tags", "language", "alias", "org",
@@ -8,22 +9,14 @@ pub fn render_mdx(root: &Node) -> String {
     let mut out = String::new();
     if !root.data.is_empty() {
         out.push_str("---\n");
-        for key in &ORDERED_FRONTMATTER_KEYS {
-            if let Some(value) = root.data.get(*key) {
-                render_frontmatter_value(&mut out, key, value);
-            }
-        }
-        let mut remaining_keys: Vec<&String> = root
-            .data
-            .keys()
-            .filter(|key| !ORDERED_FRONTMATTER_KEYS.contains(&key.as_str()))
-            .collect();
-        remaining_keys.sort();
-        for key in remaining_keys {
-            if let Some(value) = root.data.get(key) {
-                render_frontmatter_value(&mut out, key, value);
-            }
-        }
+        frontmatter::render_frontmatter(
+            &mut out,
+            root,
+            &ORDERED_FRONTMATTER_KEYS,
+            |out, key, value| {
+                render_frontmatter_value(out, key, value);
+            },
+        );
         out.push_str("---\n\n");
     }
     if let Some(children) = &root.children {

@@ -104,135 +104,154 @@ fn mdast_child_to_string(node: &MdastNode) -> String {
     }
 }
 
-fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
+fn try_extract_example_block(
+    lines: &[&str],
+    i: &mut usize,
+    result: &mut Vec<String>,
+    exports: &mut Vec<ExportBlock>,
+) -> bool {
+    let trimmed_lower = lines[*i].trim().to_lowercase();
+    if trimmed_lower != "{/* #+begin_example */}" {
+        return false;
+    }
+    *i += 1;
+    let mut content_lines = Vec::new();
+    while *i < lines.len() {
+        if lines[*i].trim().to_lowercase() == "{/* #+end_example */}" {
+            *i += 1;
+            break;
+        }
+        content_lines.push(lines[*i].to_string());
+        *i += 1;
+    }
+    let content = if content_lines.len() >= 2
+        && content_lines[0].trim() == "```"
+        && content_lines.last().unwrap().trim() == "```"
+    {
+        content_lines[1..content_lines.len() - 1].join("\n")
+    } else {
+        content_lines.join("\n")
+    };
+    let idx = exports.len();
+    exports.push(ExportBlock {
+        export_type: "EXAMPLE".to_string(),
+        content,
+        exports: None,
+    });
+    result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
+    true
+}
+
+fn try_extract_export_block(
+    lines: &[&str],
+    i: &mut usize,
+    result: &mut Vec<String>,
+    exports: &mut Vec<ExportBlock>,
+) -> bool {
     let begin_marker = "{/* #+begin_export";
     let end_marker = "{/* #+end_export";
+    let trimmed = lines[*i].trim();
+    if !(trimmed.starts_with(begin_marker) && trimmed.ends_with("*/}")) {
+        return false;
+    }
+    let inner = trimmed
+        .strip_prefix(begin_marker)
+        .unwrap()
+        .strip_suffix("*/}")
+        .unwrap()
+        .trim();
+    let parts: Vec<&str> = inner.split_whitespace().collect();
+    let export_type = parts.first().copied().unwrap_or("").to_string();
+    let mut export_param = None;
+    let mut j = 1;
+    while j < parts.len() {
+        let token = parts[j];
+        if let Some(key) = token.strip_prefix(':') {
+            if key == "exports" && j + 1 < parts.len() {
+                export_param = Some(parts[j + 1].to_string());
+                j += 2;
+                continue;
+            }
+        }
+        j += 1;
+    }
+    *i += 1;
+    let mut content_lines = Vec::new();
+    while *i < lines.len() {
+        let t = lines[*i].trim();
+        if t.starts_with(end_marker) && t.ends_with("*/}") {
+            *i += 1;
+            break;
+        }
+        content_lines.push(lines[*i].to_string());
+        *i += 1;
+    }
+    let content = content_lines.join("\n");
+    let idx = exports.len();
+    exports.push(ExportBlock {
+        export_type,
+        content,
+        exports: export_param,
+    });
+    result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
+    true
+}
 
+fn try_extract_jsx_block(
+    lines: &[&str],
+    i: &mut usize,
+    result: &mut Vec<String>,
+    exports: &mut Vec<ExportBlock>,
+) -> bool {
+    let trimmed = lines[*i].trim();
+    if !jsx::is_jsx_line(trimmed) {
+        return false;
+    }
+    let mut start = jsx::find_jsx_block_start(lines, *i);
+    let mut end = jsx::find_jsx_block_end(lines, *i);
+    while start < end && lines[start].trim().is_empty() {
+        start += 1;
+    }
+    while end > start && lines[end].trim().is_empty() {
+        end -= 1;
+    }
+    let block_lines: Vec<&str> = lines[start..=end].to_vec();
+    let content = block_lines.join("\n");
+    if !content.trim().is_empty() {
+        let idx = exports.len();
+        exports.push(ExportBlock {
+            export_type: "jsx".to_string(),
+            content,
+            exports: None,
+        });
+        result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
+    } else {
+        for j in *i..=end {
+            result.push(lines[j].to_string());
+        }
+    }
+    *i = end + 1;
+    true
+}
+
+fn extract_export_blocks(body: &str) -> (String, Vec<ExportBlock>) {
     let lines: Vec<&str> = body.lines().collect();
     let mut result = Vec::new();
     let mut exports = Vec::new();
     let mut i = 0;
-
     while i < lines.len() {
-        let trimmed = lines[i].trim();
-        let trimmed_lower = trimmed.to_lowercase();
-
-        if trimmed_lower == "{/* #+begin_example */}" {
-            i += 1;
-            let mut content_lines = Vec::new();
-
-            while i < lines.len() {
-                if lines[i].trim().to_lowercase() == "{/* #+end_example */}" {
-                    i += 1;
-                    break;
-                }
-                content_lines.push(lines[i].to_string());
-                i += 1;
-            }
-
-            let content = if content_lines.len() >= 2
-                && content_lines[0].trim() == "```"
-                && content_lines.last().unwrap().trim() == "```"
-            {
-                content_lines[1..content_lines.len() - 1].join("\n")
-            } else {
-                content_lines.join("\n")
-            };
-
-            let idx = exports.len();
-            exports.push(ExportBlock {
-                export_type: "EXAMPLE".to_string(),
-                content,
-                exports: None,
-            });
-            result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
-        } else if trimmed.starts_with(begin_marker) && trimmed.ends_with("*/}") {
-            let inner = trimmed
-                .strip_prefix(begin_marker)
-                .unwrap()
-                .strip_suffix("*/}")
-                .unwrap()
-                .trim();
-            let parts: Vec<&str> = inner.split_whitespace().collect();
-            let export_type = parts.first().copied().unwrap_or("").to_string();
-            let mut export_param = None;
-            let mut j = 1;
-            while j < parts.len() {
-                let token = parts[j];
-                if let Some(key) = token.strip_prefix(':') {
-                    if key == "exports" && j + 1 < parts.len() {
-                        export_param = Some(parts[j + 1].to_string());
-                        j += 2;
-                        continue;
-                    }
-                }
-                j += 1;
-            }
-
-            i += 1;
-            let mut content_lines = Vec::new();
-
-            while i < lines.len() {
-                let t = lines[i].trim();
-                if t.starts_with(end_marker) && t.ends_with("*/}") {
-                    i += 1;
-                    break;
-                }
-                content_lines.push(lines[i].to_string());
-                i += 1;
-            }
-
-            let content = content_lines.join("\n");
-            let idx = exports.len();
-
-            exports.push(ExportBlock {
-                export_type,
-                content,
-                exports: export_param,
-            });
-
-            result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
-        } else if jsx::is_jsx_line(trimmed) {
-            // JSX block detection — find block boundaries without annotations
-
-            // Expand backward to include preceding import/export lines
-            let mut start = jsx::find_jsx_block_start(&lines, i);
-
-            // Expand forward: include subsequent JSX lines (allow blank lines between them)
-            let mut end = jsx::find_jsx_block_end(&lines, i);
-
-            // Trim leading/trailing blank lines from the block
-            while start < end && lines[start].trim().is_empty() {
-                start += 1;
-            }
-            while end > start && lines[end].trim().is_empty() {
-                end -= 1;
-            }
-
-            let block_lines: Vec<&str> = lines[start..=end].to_vec();
-            let content = block_lines.join("\n");
-
-            if !content.trim().is_empty() {
-                let idx = exports.len();
-                exports.push(ExportBlock {
-                    export_type: "jsx".to_string(),
-                    content,
-                    exports: None,
-                });
-                result.push(format!("EXPORTBLOCKPLACEHOLDER{}", idx));
-            } else {
-                // Fallback: emit original lines unchanged
-                for j in i..=end {
-                    result.push(lines[j].to_string());
-                }
-            }
-            i = end + 1;
-        } else {
-            result.push(lines[i].to_string());
-            i += 1;
+        if try_extract_example_block(&lines, &mut i, &mut result, &mut exports) {
+            continue;
         }
+        if try_extract_export_block(&lines, &mut i, &mut result, &mut exports) {
+            continue;
+        }
+        if try_extract_jsx_block(&lines, &mut i, &mut result, &mut exports) {
+            continue;
+        }
+        result.push(lines[i].to_string());
+        i += 1;
     }
-
     (result.join("\n"), exports)
 }
 

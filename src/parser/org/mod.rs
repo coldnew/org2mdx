@@ -245,6 +245,13 @@ impl OrgParser {
                 blocks.push(list);
                 continue;
             }
+            if is_horizontal_rule(trimmed) {
+                let mut node = Node::new("thematicBreak");
+                self.attach_pending_attrs(&mut node);
+                blocks.push(node);
+                self.advance();
+                continue;
+            }
             let (para, _had_lb) = self.parse_paragraph();
             if let Some(ref children) = para.children {
                 if !children.is_empty() {
@@ -563,6 +570,11 @@ fn parse_attr_html_value(v: &str) -> HashMap<String, Value> {
         attrs.insert(jsx_key, Value::String(val.to_string()));
     }
     attrs
+}
+
+fn is_horizontal_rule(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.len() >= 5 && trimmed.chars().all(|c| c == '-')
 }
 
 pub fn parse_org(input: &str) -> Result<Node> {
